@@ -3,10 +3,209 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>auto-lab</title>
-<style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#111;color:#eee;text-align:center}</style>
+<title>탐구 그래프 메이커</title>
+<meta name="description" content="중학교 과학 탐구 측정값을 입력하면 그래프·추세선·기울기를 바로 그려 주는 도구">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1d2330;--muted:#667085;--line:#d0d5dd;--accent:#2563eb;--accent2:#e11d48}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:16px;max-width:1100px;margin:0 auto}
+header h1{margin:0;font-size:1.4rem}
+header p{margin:4px 0 0;color:var(--muted);font-size:.92rem}
+main{max-width:1100px;margin:0 auto;padding:0 16px 32px;display:grid;grid-template-columns:340px 1fr;gap:16px}
+@media (max-width:820px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{font-size:1rem;margin:0 0 10px}
+label{font-size:.85rem;color:var(--muted);display:block;margin:6px 0 2px}
+input,select{font:inherit;width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+th,td{border:1px solid var(--line);padding:0}
+th{background:#eef2f7;font-size:.82rem;padding:4px}
+td input{border:0;border-radius:0;text-align:right}
+td.n{width:32px;text-align:center;font-size:.8rem;color:var(--muted)}
+td.del button{border:0;background:none;color:var(--muted);cursor:pointer;padding:4px 6px}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+button.b{font:inherit;font-size:.88rem;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:#fff;cursor:pointer}
+button.b.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+canvas{width:100%;height:auto;display:block;border-radius:8px;background:#fff}
+.stats{margin-top:10px;font-size:.95rem;line-height:1.6}
+.stats b{font-variant-numeric:tabular-nums}
+.chk{display:flex;align-items:center;gap:6px;font-size:.88rem;color:var(--ink);margin:4px 0}
+.chk input{width:auto}
+.hint{font-size:.8rem;color:var(--muted);margin-top:8px}
+footer{text-align:center;color:var(--muted);font-size:.8rem;padding:12px}
+</style>
 </head>
 <body>
-<div><h1>auto-lab</h1><p>준비 중 — 2026-11-26 07:13 첫 회차 시작</p></div>
+<header>
+  <h1>📈 탐구 그래프 메이커</h1>
+  <p>측정값을 표에 넣으면 그래프·추세선·기울기가 바로 나와요. 모든 계산은 이 브라우저 안에서만 해요.</p>
+</header>
+<main>
+  <section class="card" aria-label="데이터 입력">
+    <h2>1. 실험 정보</h2>
+    <label for="example">예시 불러오기</label>
+    <select id="example">
+      <option value="">— 직접 입력 —</option>
+      <option value="hooke">용수철에 매단 추의 무게와 늘어난 길이</option>
+      <option value="ohm">전압과 전류 (옴의 법칙)</option>
+      <option value="heat">물을 가열할 때 시간과 온도</option>
+      <option value="boyle">압력과 기체의 부피 (보일 법칙)</option>
+    </select>
+    <label for="title">그래프 제목</label>
+    <input id="title" value="">
+    <div class="row2">
+      <div><label for="xname">가로축(독립 변인)</label><input id="xname"></div>
+      <div><label for="xunit">단위</label><input id="xunit"></div>
+      <div><label for="yname">세로축(종속 변인)</label><input id="yname"></div>
+      <div><label for="yunit">단위</label><input id="yunit"></div>
+    </div>
+    <h2 style="margin-top:14px">2. 측정값</h2>
+    <table>
+      <thead><tr><th>#</th><th id="thx">x</th><th id="thy">y</th><th></th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="btns">
+      <button class="b" id="addRow">+ 행 추가</button>
+      <button class="b" id="clear">모두 지우기</button>
+    </div>
+    <p class="hint">엑셀에서 두 열을 복사해 표의 첫 칸에 붙여넣어도 돼요.</p>
+  </section>
+  <section class="card" aria-label="그래프">
+    <h2>3. 그래프</h2>
+    <div class="btns" style="margin:0 0 8px">
+      <label class="chk"><input type="checkbox" id="optLine" checked> 추세선(직선)</label>
+      <label class="chk"><input type="checkbox" id="optConnect"> 점 잇기</label>
+      <label class="chk"><input type="checkbox" id="optOrigin" checked> 원점 포함</label>
+    </div>
+    <canvas id="cv" width="1000" height="700" role="img" aria-label="측정값 그래프"></canvas>
+    <div class="stats" id="stats"></div>
+    <div class="btns">
+      <button class="b primary" id="png">그래프 PNG 저장</button>
+    </div>
+  </section>
+</main>
+<footer>auto-lab · Claude가 만든 실험 도구</footer>
+<script>
+const EX={
+  hooke:{title:'추의 무게와 용수철이 늘어난 길이',xname:'추의 무게',xunit:'N',yname:'늘어난 길이',yunit:'cm',data:[[0,0],[0.5,1.1],[1,2.0],[1.5,3.1],[2,3.9],[2.5,5.1]]},
+  ohm:{title:'니크롬선에 걸린 전압과 전류',xname:'전압',xunit:'V',yname:'전류',yunit:'mA',data:[[0,0],[1.5,52],[3,98],[4.5,151],[6,203],[7.5,248]]},
+  heat:{title:'물을 가열한 시간과 온도',xname:'시간',xunit:'분',yname:'온도',yunit:'℃',data:[[0,18],[1,26],[2,35],[3,43],[4,52],[5,60],[6,69]]},
+  boyle:{title:'압력과 기체의 부피',xname:'압력',xunit:'기압',yname:'부피',yunit:'mL',data:[[1,60],[1.5,40],[2,30],[2.5,24],[3,20],[4,15]]}
+};
+const $=id=>document.getElementById(id);
+const tbody=$('tbody');
+function addRow(x='',y=''){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td class="n"></td><td><input inputmode="decimal" aria-label="x 값"></td><td><input inputmode="decimal" aria-label="y 값"></td><td class="del"><button title="행 삭제" aria-label="행 삭제">✕</button></td>`;
+  const [ix,iy]=tr.querySelectorAll('input');ix.value=x;iy.value=y;
+  tr.querySelector('button').onclick=()=>{tr.remove();renumber();draw()};
+  tbody.appendChild(tr);renumber();
+}
+function renumber(){[...tbody.rows].forEach((r,i)=>r.cells[0].textContent=i+1)}
+function getData(){
+  const pts=[];
+  for(const r of tbody.rows){
+    const [ix,iy]=r.querySelectorAll('input');
+    const x=parseFloat(ix.value.replace(',','.')),y=parseFloat(iy.value.replace(',','.'));
+    if(isFinite(x)&&isFinite(y))pts.push([x,y]);
+  }
+  return pts;
+}
+function loadExample(k){
+  const e=EX[k];if(!e)return;
+  ['title','xname','xunit','yname','yunit'].forEach(f=>$(f).value=e[f]);
+  tbody.innerHTML='';e.data.forEach(d=>addRow(d[0],d[1]));draw();
+}
+function regress(p){
+  const n=p.length;if(n<2)return null;
+  let sx=0,sy=0,sxx=0,sxy=0,syy=0;
+  for(const[x,y]of p){sx+=x;sy+=y;sxx+=x*x;sxy+=x*y;syy+=y*y}
+  const d=n*sxx-sx*sx;if(d===0)return null;
+  const m=(n*sxy-sx*sy)/d,b=(sy-m*sx)/n;
+  const my=sy/n;let ssr=0,sst=0;
+  for(const[x,y]of p){ssr+=(y-(m*x+b))**2;sst+=(y-my)**2}
+  return{m,b,r2:sst===0?1:1-ssr/sst};
+}
+function nice(span){
+  const raw=span/6,p=Math.pow(10,Math.floor(Math.log10(raw))),f=raw/p;
+  return (f<1.5?1:f<3?2:f<7?5:10)*p;
+}
+function fmt(v,step){
+  const dec=Math.max(0,-Math.floor(Math.log10(step)+1e-9));
+  return (+v.toFixed(Math.min(dec,6))).toString();
+}
+function sig(v){if(!isFinite(v))return '-';return Math.abs(v)>=1000||Math.abs(v)<0.001&&v!==0?v.toExponential(3):(+v.toPrecision(4)).toString()}
+function axisLabel(n,u){return u?`${n} (${u})`:n}
+function range(vals,incl0){
+  let lo=Math.min(...vals),hi=Math.max(...vals);
+  if(incl0){lo=Math.min(lo,0);hi=Math.max(hi,0)}
+  if(lo===hi){lo-=1;hi+=1}
+  const st=nice(hi-lo);
+  return{lo:Math.floor(lo/st)*st,hi:Math.ceil(hi/st)*st,st};
+}
+function draw(){
+  const cv=$('cv'),c=cv.getContext('2d'),W=cv.width,H=cv.height;
+  const pts=getData();
+  const xn=$('xname').value||'x',yn=$('yname').value||'y';
+  $('thx').textContent=axisLabel(xn,$('xunit').value);$('thy').textContent=axisLabel(yn,$('yunit').value);
+  c.fillStyle='#fff';c.fillRect(0,0,W,H);
+  const L=110,R=40,T=70,B=100,pw=W-L-R,ph=H-T-B;
+  c.fillStyle='#1d2330';c.font='bold 30px system-ui,sans-serif';c.textAlign='center';
+  c.fillText($('title').value||'',W/2,42);
+  if(pts.length===0){c.font='24px system-ui,sans-serif';c.fillStyle='#667085';c.fillText('측정값을 입력하세요',W/2,H/2);$('stats').innerHTML='';return}
+  const inc=$('optOrigin').checked;
+  const rx=range(pts.map(p=>p[0]),inc),ry=range(pts.map(p=>p[1]),inc);
+  const X=v=>L+(v-rx.lo)/(rx.hi-rx.lo)*pw,Y=v=>T+ph-(v-ry.lo)/(ry.hi-ry.lo)*ph;
+  c.lineWidth=1;c.font='20px system-ui,sans-serif';
+  for(let v=rx.lo;v<=rx.hi+rx.st/2;v+=rx.st){
+    c.strokeStyle='#e5e7eb';c.beginPath();c.moveTo(X(v),T);c.lineTo(X(v),T+ph);c.stroke();
+    c.fillStyle='#475467';c.textAlign='center';c.fillText(fmt(v,rx.st),X(v),T+ph+28);
+  }
+  for(let v=ry.lo;v<=ry.hi+ry.st/2;v+=ry.st){
+    c.strokeStyle='#e5e7eb';c.beginPath();c.moveTo(L,Y(v));c.lineTo(L+pw,Y(v));c.stroke();
+    c.fillStyle='#475467';c.textAlign='right';c.fillText(fmt(v,ry.st),L-10,Y(v)+7);
+  }
+  c.strokeStyle='#1d2330';c.lineWidth=2;c.strokeRect(L,T,pw,ph);
+  c.fillStyle='#1d2330';c.font='bold 22px system-ui,sans-serif';c.textAlign='center';
+  c.fillText(axisLabel(xn,$('xunit').value),L+pw/2,H-30);
+  c.save();c.translate(30,T+ph/2);c.rotate(-Math.PI/2);c.fillText(axisLabel(yn,$('yunit').value),0,0);c.restore();
+  c.save();c.beginPath();c.rect(L,T,pw,ph);c.clip();
+  if($('optConnect').checked){
+    const s=[...pts].sort((a,b)=>a[0]-b[0]);
+    c.strokeStyle='#94a3b8';c.lineWidth=2;c.beginPath();s.forEach((p,i)=>i?c.lineTo(X(p[0]),Y(p[1])):c.moveTo(X(p[0]),Y(p[1])));c.stroke();
+  }
+  const reg=regress(pts);
+  if(reg&&$('optLine').checked){
+    c.strokeStyle='#e11d48';c.lineWidth=3;c.setLineDash([12,8]);c.beginPath();
+    c.moveTo(X(rx.lo),Y(reg.m*rx.lo+reg.b));c.lineTo(X(rx.hi),Y(reg.m*rx.hi+reg.b));c.stroke();c.setLineDash([]);
+  }
+  c.restore();
+  for(const[x,y]of pts){c.fillStyle='#2563eb';c.beginPath();c.arc(X(x),Y(y),8,0,Math.PI*2);c.fill();c.strokeStyle='#fff';c.lineWidth=2;c.stroke()}
+  let h=`측정값 <b>${pts.length}</b>개`;
+  if(reg){
+    const yu=$('yunit').value,xu=$('xunit').value;
+    const su=yu&&xu?` ${yu}/${xu}`:'';
+    const bs=reg.b<0?' − '+sig(-reg.b):' + '+sig(reg.b);
+    h+=`<br>추세선: <b>y = ${sig(reg.m)}x${bs}</b><br>기울기: <b>${sig(reg.m)}${su}</b> &nbsp; 결정계수 R²: <b>${reg.r2.toFixed(3)}</b>`;
+    h+=`<br><span class="hint">R²가 1에 가까울수록 점들이 직선에 가깝게 모여 있다는 뜻이에요.</span>`;
+  }
+  $('stats').innerHTML=h;
+}
+tbody.addEventListener('input',draw);
+tbody.addEventListener('paste',e=>{
+  const t=e.clipboardData.getData('text');if(!/[\t\n]/.test(t))return;
+  e.preventDefault();
+  const rows=t.trim().split(/\r?\n/).map(l=>l.split(/\t|,(?=\s*-?\d)|\s+/).filter(Boolean));
+  tbody.innerHTML='';rows.forEach(r=>addRow(r[0]??'',r[1]??''));draw();
+});
+['title','xname','xunit','yname','yunit','optLine','optConnect','optOrigin'].forEach(id=>$(id).addEventListener('input',draw));
+$('example').onchange=e=>loadExample(e.target.value);
+$('addRow').onclick=()=>{addRow();tbody.lastChild.querySelector('input').focus()};
+$('clear').onclick=()=>{if(confirm('표를 모두 지울까요?')){tbody.innerHTML='';for(let i=0;i<5;i++)addRow();draw()}};
+$('png').onclick=()=>{const a=document.createElement('a');a.download=($('title').value||'그래프')+'.png';a.href=$('cv').toDataURL('image/png');a.click()};
+loadExample('hooke');$('example').value='hooke';
+</script>
 </body>
 </html>
