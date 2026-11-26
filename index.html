@@ -35,6 +35,8 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;background:#fff}
 .chk input{width:auto}
 .hint{font-size:.8rem;color:var(--muted);margin-top:8px}
 footer{text-align:center;color:var(--muted);font-size:.8rem;padding:12px}
+textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;line-height:1.5;resize:vertical}
+.concl{margin-top:12px}
 details.axis{margin-top:10px;font-size:.88rem}
 details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
 .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -42,7 +44,7 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
   header{padding:12px 12px 8px}header h1{font-size:1.2rem}
   main{padding:0 10px 24px;gap:10px}
   .card{padding:12px}
-  input,select{font-size:16px;padding:9px 10px}
+  input,select,textarea{font-size:16px;padding:9px 10px}
   td input{padding:10px 8px}
   td.del button{padding:10px 12px;font-size:1rem}
   button.b{padding:10px 14px;font-size:.95rem}
@@ -114,6 +116,11 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
       <div class="btns"><button class="b" id="axisReset">자동으로 되돌리기</button></div>
       <p class="hint">비워 두면 자동이에요. 추세선을 범위 밖까지 늘려 보고 싶을 때(예측) 최댓값을 크게 잡아 보세요.</p>
     </details>
+    <div id="conclBox" class="concl" hidden>
+      <label for="concl">보고서용 결과 문장 (자동 초안 — 고쳐 써도 돼요)</label>
+      <textarea id="concl" rows="4"></textarea>
+      <div class="btns" style="margin-top:6px"><button class="b" id="copyConcl">문장 복사</button><span class="hint" id="copyMsg" aria-live="polite"></span></div>
+    </div>
     <div class="btns">
       <button class="b primary" id="png">그래프 PNG 저장</button>
     </div>
@@ -212,15 +219,26 @@ function range(vals,incl0,mlo,mhi){
   if(mlo!==null)L=mlo;if(mhi!==null)H=mhi;
   return{lo:L,hi:H,st};
 }
+function fitCanvas(force){
+  // 좁은 화면에서는 캔버스 해상도를 낮춰 글자가 상대적으로 커 보이게 함
+  const cv=$('cv'),cw=cv.clientWidth||1000;
+  const [w,h]=force||(cw<560?[640,560]:[1000,700]);
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
+}
 function draw(){
+  fitCanvas();drawOn();
+}
+function drawOn(){
   const cv=$('cv'),c=cv.getContext('2d'),W=cv.width,H=cv.height;
   const pts=getData();
   const xn=$('xname').value||'x',yn=$('yname').value||'y';
   $('thx').textContent=axisLabel(xn,$('xunit').value);$('thy').textContent=axisLabel(yn,$('yunit').value);
   c.fillStyle='#fff';c.fillRect(0,0,W,H);
-  const L=110,R=40,T=70,B=100,pw=W-L-R,ph=H-T-B;
-  c.fillStyle='#1d2330';c.font='bold 30px system-ui,sans-serif';c.textAlign='center';
-  c.fillText($('title').value||'',W/2,42);
+  const sm=W<1000,L=sm?92:110,R=sm?24:40,T=sm?62:70,B=sm?92:100,pw=W-L-R,ph=H-T-B;
+  c.fillStyle='#1d2330';c.textAlign='center';
+  const tt=$('title').value||'';let tf=30;c.font=`bold ${tf}px system-ui,sans-serif`;
+  while(tf>16&&c.measureText(tt).width>W-20){tf-=2;c.font=`bold ${tf}px system-ui,sans-serif`}
+  c.fillText(tt,W/2,42);
   if(pts.length===0){c.font='24px system-ui,sans-serif';c.fillStyle='#667085';c.fillText('측정값을 입력하세요',W/2,H/2);$('stats').innerHTML='';return}
   const inc=$('optOrigin').checked;
   const rx=range(pts.map(p=>p[0]),inc,num('xmin'),num('xmax')),ry=range(pts.map(p=>p[1]),inc,num('ymin'),num('ymax'));
@@ -267,6 +285,27 @@ function draw(){
     h+=`<br><span class="hint">이 추세선을 계산할 수 없어요. (점 개수가 부족하거나, 반비례인데 x=0이 있어요)</span>`;
   }
   $('stats').innerHTML=h;
+  writeConclusion(pts,reg);
+}
+function writeConclusion(pts,reg){
+  const box=$('concl');
+  const xn=$('xname').value||'x',yn=$('yname').value||'y',xu=$('xunit').value,yu=$('yunit').value;
+  if(pts.length<3||!reg){box.value='';$('conclBox').hidden=true;return}
+  $('conclBox').hidden=false;
+  const s=[...pts].sort((a,b)=>a[0]-b[0]);
+  const up=s[s.length-1][1]>s[0][1];
+  const 은=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'은':'는'};
+  const 이=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'이':'가'};
+  const 와=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'과':'와'};
+  let t=`${xn}${이(xn)} 커질수록 ${yn}${은(yn)} ${up?'커진다':'작아진다'}.`;
+  const fit=reg.r2>=0.95?'잘 맞는':reg.r2>=0.8?'대체로 맞는':'잘 맞지 않는';
+  if(reg.type==='prop')t+=` 그래프가 원점을 지나는 직선에 가까우므로 ${xn}${와(xn)} ${yn}${은(yn)} 정비례 관계라고 볼 수 있다.`;
+  else if(reg.type==='linear')t+=` 그래프는 직선 모양이다.`;
+  else if(reg.type==='inv')t+=` 두 값을 곱한 값이 약 ${sig(reg.xy)} 정도로 거의 일정하므로 ${xn}${와(xn)} ${yn}${은(yn)} 반비례 관계라고 볼 수 있다.`;
+  else if(reg.type==='quad')t+=` 그래프는 직선이 아닌 곡선 모양이다.`;
+  if(reg.slope!==undefined)t+=` ${xn}${이(xn)} 1${xu?' '+xu:''} 커질 때마다 ${yn}${은(yn)} 약 ${sig(Math.abs(reg.slope))}${yu?' '+yu:''}씩 ${reg.slope>=0?'커진다':'작아진다'}.`;
+  t+=` (추세선 ${reg.eq}, 결정계수 R² = ${reg.r2.toFixed(3)}: 측정값과 ${fit} 편)`;
+  box.value=t;
 }
 tbody.addEventListener('input',draw);
 tbody.addEventListener('paste',e=>{
@@ -280,7 +319,17 @@ $('axisReset').onclick=()=>{['xmin','xmax','ymin','ymax'].forEach(i=>$(i).value=
 $('example').onchange=e=>loadExample(e.target.value);
 $('addRow').onclick=()=>{addRow();tbody.lastChild.querySelector('input').focus()};
 $('clear').onclick=()=>{if(confirm('표를 모두 지울까요?')){tbody.innerHTML='';for(let i=0;i<5;i++)addRow();draw()}};
-$('png').onclick=()=>{const a=document.createElement('a');a.download=($('title').value||'그래프')+'.png';a.href=$('cv').toDataURL('image/png');a.click()};
+$('png').onclick=()=>{
+  // 저장은 화면 크기와 상관없이 항상 큰 해상도로
+  fitCanvas([1000,700]);drawOn();
+  const a=document.createElement('a');a.download=($('title').value||'그래프')+'.png';a.href=$('cv').toDataURL('image/png');
+  draw();a.click()};
+$('copyConcl').onclick=async()=>{
+  const t=$('concl').value;
+  try{await navigator.clipboard.writeText(t);$('copyMsg').textContent='복사했어요'}
+  catch(e){$('concl').select();document.execCommand('copy');$('copyMsg').textContent='복사했어요'}
+  setTimeout(()=>$('copyMsg').textContent='',1500)};
+let rzT;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(draw,150)});
 loadExample('hooke');$('example').value='hooke';
 </script>
 </body>
