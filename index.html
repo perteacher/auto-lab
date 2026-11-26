@@ -35,6 +35,20 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;background:#fff}
 .chk input{width:auto}
 .hint{font-size:.8rem;color:var(--muted);margin-top:8px}
 footer{text-align:center;color:var(--muted);font-size:.8rem;padding:12px}
+details.axis{margin-top:10px;font-size:.88rem}
+details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
+.row4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+@media (max-width:820px){
+  header{padding:12px 12px 8px}header h1{font-size:1.2rem}
+  main{padding:0 10px 24px;gap:10px}
+  .card{padding:12px}
+  input,select{font-size:16px;padding:9px 10px}
+  td input{padding:10px 8px}
+  td.del button{padding:10px 12px;font-size:1rem}
+  button.b{padding:10px 14px;font-size:.95rem}
+  .row4{grid-template-columns:1fr 1fr}
+}
+@media (pointer:coarse){input[type=checkbox]{width:20px;height:20px}}
 </style>
 </head>
 <body>
@@ -89,6 +103,17 @@ footer{text-align:center;color:var(--muted);font-size:.8rem;padding:12px}
     </div>
     <canvas id="cv" width="1000" height="700" role="img" aria-label="측정값 그래프"></canvas>
     <div class="stats" id="stats"></div>
+    <details class="axis" id="axisBox">
+      <summary>축 범위 직접 정하기</summary>
+      <div class="row4">
+        <div><label for="xmin">가로 최솟값</label><input id="xmin" inputmode="decimal" placeholder="자동"></div>
+        <div><label for="xmax">가로 최댓값</label><input id="xmax" inputmode="decimal" placeholder="자동"></div>
+        <div><label for="ymin">세로 최솟값</label><input id="ymin" inputmode="decimal" placeholder="자동"></div>
+        <div><label for="ymax">세로 최댓값</label><input id="ymax" inputmode="decimal" placeholder="자동"></div>
+      </div>
+      <div class="btns"><button class="b" id="axisReset">자동으로 되돌리기</button></div>
+      <p class="hint">비워 두면 자동이에요. 추세선을 범위 밖까지 늘려 보고 싶을 때(예측) 최댓값을 크게 잡아 보세요.</p>
+    </details>
     <div class="btns">
       <button class="b primary" id="png">그래프 PNG 저장</button>
     </div>
@@ -123,6 +148,7 @@ function getData(){
 }
 function loadExample(k){
   const e=EX[k];if(!e)return;
+  ['xmin','xmax','ymin','ymax'].forEach(i=>$(i).value='');
   ['title','xname','xunit','yname','yunit'].forEach(f=>$(f).value=e[f]);
   tbody.innerHTML='';e.data.forEach(d=>addRow(d[0],d[1]));draw();
 }
@@ -170,15 +196,20 @@ function fmt(v,step){
 }
 function sig(v){if(!isFinite(v))return '-';return Math.abs(v)>=1000||Math.abs(v)<0.001&&v!==0?v.toExponential(3):(+v.toPrecision(4)).toString()}
 function axisLabel(n,u){return u?`${n} (${u})`:n}
-function range(vals,incl0){
+function num(id){const v=parseFloat($(id).value.replace(',','.'));return isFinite(v)?v:null}
+function range(vals,incl0,mlo,mhi){
+  if(mlo!==null&&mhi!==null&&mhi>mlo){const st=nice(mhi-mlo);return{lo:mlo,hi:mhi,st,manual:true}}
   let lo=Math.min(...vals),hi=Math.max(...vals);
+  if(mlo!==null){lo=mlo;incl0=false}if(mhi!==null){hi=mhi;incl0=false}
+  if(lo>hi)[lo,hi]=[hi,lo];
   if(incl0){lo=Math.min(lo,0);hi=Math.max(hi,0)}
   if(lo===hi){lo-=1;hi+=1}
   const st=nice(hi-lo);
   let L=Math.floor(lo/st)*st,H=Math.ceil(hi/st)*st;
   // 점이 테두리에 걸치지 않도록 여백 한 칸 (단, 0 경계는 유지)
-  if(H-hi<st*0.05&&hi!==0)H+=st;
-  if(lo-L<st*0.05&&lo!==0)L-=st;
+  if(mhi===null&&H-hi<st*0.05&&hi!==0)H+=st;
+  if(mlo===null&&lo-L<st*0.05&&lo!==0)L-=st;
+  if(mlo!==null)L=mlo;if(mhi!==null)H=mhi;
   return{lo:L,hi:H,st};
 }
 function draw(){
@@ -192,14 +223,14 @@ function draw(){
   c.fillText($('title').value||'',W/2,42);
   if(pts.length===0){c.font='24px system-ui,sans-serif';c.fillStyle='#667085';c.fillText('측정값을 입력하세요',W/2,H/2);$('stats').innerHTML='';return}
   const inc=$('optOrigin').checked;
-  const rx=range(pts.map(p=>p[0]),inc),ry=range(pts.map(p=>p[1]),inc);
+  const rx=range(pts.map(p=>p[0]),inc,num('xmin'),num('xmax')),ry=range(pts.map(p=>p[1]),inc,num('ymin'),num('ymax'));
   const X=v=>L+(v-rx.lo)/(rx.hi-rx.lo)*pw,Y=v=>T+ph-(v-ry.lo)/(ry.hi-ry.lo)*ph;
   c.lineWidth=1;c.font='20px system-ui,sans-serif';
-  for(let v=rx.lo;v<=rx.hi+rx.st/2;v+=rx.st){
+  for(let v=Math.ceil(rx.lo/rx.st-1e-9)*rx.st;v<=rx.hi+rx.st*1e-6;v+=rx.st){
     c.strokeStyle='#e5e7eb';c.beginPath();c.moveTo(X(v),T);c.lineTo(X(v),T+ph);c.stroke();
     c.fillStyle='#475467';c.textAlign='center';c.fillText(fmt(v,rx.st),X(v),T+ph+28);
   }
-  for(let v=ry.lo;v<=ry.hi+ry.st/2;v+=ry.st){
+  for(let v=Math.ceil(ry.lo/ry.st-1e-9)*ry.st;v<=ry.hi+ry.st*1e-6;v+=ry.st){
     c.strokeStyle='#e5e7eb';c.beginPath();c.moveTo(L,Y(v));c.lineTo(L+pw,Y(v));c.stroke();
     c.fillStyle='#475467';c.textAlign='right';c.fillText(fmt(v,ry.st),L-10,Y(v)+7);
   }
@@ -222,8 +253,9 @@ function draw(){
     c.stroke();c.setLineDash([]);
   }
   c.restore();
-  for(const[x,y]of pts){c.fillStyle='#2563eb';c.beginPath();c.arc(X(x),Y(y),8,0,Math.PI*2);c.fill();c.strokeStyle='#fff';c.lineWidth=2;c.stroke()}
-  let h=`측정값 <b>${pts.length}</b>개`;
+  let out=0;
+  for(const[x,y]of pts){if(x<rx.lo||x>rx.hi||y<ry.lo||y>ry.hi){out++;continue}c.fillStyle='#2563eb';c.beginPath();c.arc(X(x),Y(y),8,0,Math.PI*2);c.fill();c.strokeStyle='#fff';c.lineWidth=2;c.stroke()}
+  let h=`측정값 <b>${pts.length}</b>개`+(out?` <span class="hint">(축 범위 밖 ${out}개는 안 보여요)</span>`:'');
   if(reg){
     const yu=$('yunit').value,xu=$('xunit').value;
     h+=`<br>추세선(${FITS[reg.type].name}${ft==='auto'?', 자동 추천':''}): <b>${reg.eq}</b>`;
@@ -243,7 +275,8 @@ tbody.addEventListener('paste',e=>{
   const rows=t.trim().split(/\r?\n/).map(l=>l.split(/\t|,(?=\s*-?\d)|\s+/).filter(Boolean));
   tbody.innerHTML='';rows.forEach(r=>addRow(r[0]??'',r[1]??''));draw();
 });
-['title','xname','xunit','yname','yunit','fitType','optConnect','optOrigin'].forEach(id=>$(id).addEventListener('input',draw));
+['title','xname','xunit','yname','yunit','fitType','optConnect','optOrigin','xmin','xmax','ymin','ymax'].forEach(id=>$(id).addEventListener('input',draw));
+$('axisReset').onclick=()=>{['xmin','xmax','ymin','ymax'].forEach(i=>$(i).value='');draw()};
 $('example').onchange=e=>loadExample(e.target.value);
 $('addRow').onclick=()=>{addRow();tbody.lastChild.querySelector('input').focus()};
 $('clear').onclick=()=>{if(confirm('표를 모두 지울까요?')){tbody.innerHTML='';for(let i=0;i<5;i++)addRow();draw()}};
