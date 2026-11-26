@@ -37,6 +37,13 @@ canvas{width:100%;height:auto;display:block;border-radius:8px;background:#fff}
 footer{text-align:center;color:var(--muted);font-size:.8rem;padding:12px}
 textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;line-height:1.5;resize:vertical}
 .concl{margin-top:12px}
+.pred{margin-top:10px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:#fafbfc}
+.pred label{margin-top:0}
+.predrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.predrow input{width:120px}
+#predOut{font-size:.95rem}
+#predWarn{margin:6px 0 0}
+#predWarn.warn{color:#b45309}
 details.axis{margin-top:10px;font-size:.88rem}
 details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
 .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
@@ -105,6 +112,11 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
     </div>
     <canvas id="cv" width="1000" height="700" role="img" aria-label="측정값 그래프"></canvas>
     <div class="stats" id="stats"></div>
+    <div class="pred" id="predBox">
+      <label for="predX">추세선으로 예측하기 — 가로축 값을 넣어 보세요</label>
+      <div class="predrow"><input id="predX" inputmode="decimal" placeholder="예: 3"><span id="predOut" aria-live="polite"></span></div>
+      <p class="hint" id="predWarn"></p>
+    </div>
     <details class="axis" id="axisBox">
       <summary>축 범위 직접 정하기</summary>
       <div class="row4">
@@ -155,7 +167,7 @@ function getData(){
 }
 function loadExample(k){
   const e=EX[k];if(!e)return;
-  ['xmin','xmax','ymin','ymax'].forEach(i=>$(i).value='');
+  ['xmin','xmax','ymin','ymax','predX'].forEach(i=>$(i).value='');
   ['title','xname','xunit','yname','yunit'].forEach(f=>$(f).value=e[f]);
   tbody.innerHTML='';e.data.forEach(d=>addRow(d[0],d[1]));draw();
 }
@@ -273,6 +285,7 @@ function drawOn(){
   c.restore();
   let out=0;
   for(const[x,y]of pts){if(x<rx.lo||x>rx.hi||y<ry.lo||y>ry.hi){out++;continue}c.fillStyle='#2563eb';c.beginPath();c.arc(X(x),Y(y),8,0,Math.PI*2);c.fill();c.strokeStyle='#fff';c.lineWidth=2;c.stroke()}
+  drawPred(c,reg,pts,X,Y,rx,ry,L,T,pw,ph);
   let h=`측정값 <b>${pts.length}</b>개`+(out?` <span class="hint">(축 범위 밖 ${out}개는 안 보여요)</span>`:'');
   if(reg){
     const yu=$('yunit').value,xu=$('xunit').value;
@@ -287,6 +300,34 @@ function drawOn(){
   $('stats').innerHTML=h;
   writeConclusion(pts,reg);
 }
+function drawPred(c,reg,pts,X,Y,rx,ry,L,T,pw,ph){
+  const out=$('predOut'),warn=$('predWarn');warn.className='hint';warn.textContent='';out.innerHTML='';
+  const px=num('predX');
+  if(px===null)return;
+  if(!reg){out.textContent='추세선이 있어야 예측할 수 있어요.';return}
+  const py=reg.f(px);
+  if(!isFinite(py)){out.textContent='이 값에서는 계산할 수 없어요.';return}
+  const yu=$('yunit').value,xu=$('xunit').value,yn=$('yname').value||'y';
+  out.innerHTML=`→ ${yn} ≈ <b>${sig(py)}${yu?' '+yu:''}</b>`;
+  const xs=pts.map(p=>p[0]),lo=Math.min(...xs),hi=Math.max(...xs);
+  if(px<lo||px>hi){warn.className='hint warn';warn.textContent=`⚠ 측정한 범위(${sig(lo)}~${sig(hi)}${xu?' '+xu:''}) 밖이라 '외삽'이에요. 이 범위 밖에서도 같은 관계가 계속된다고 가정한 값이라 실제와 다를 수 있어요.`}
+  else warn.textContent='측정한 범위 안의 값이라(내삽) 비교적 믿을 만해요.';
+  if(px<rx.lo||px>rx.hi||py<ry.lo||py>ry.hi){warn.textContent+=' (그래프 범위 밖이라 점은 안 보여요. 축 범위를 늘려 보세요.)';return}
+  c.save();c.strokeStyle='#f59e0b';c.lineWidth=2;c.setLineDash([6,6]);c.beginPath();
+  c.moveTo(X(px),T+ph);c.lineTo(X(px),Y(py));c.lineTo(L,Y(py));c.stroke();c.setLineDash([]);
+  c.fillStyle='#f59e0b';c.beginPath();const k=X(px),m=Y(py);c.moveTo(k,m-11);c.lineTo(k+11,m);c.lineTo(k,m+11);c.lineTo(k-11,m);c.closePath();c.fill();
+  c.strokeStyle='#fff';c.lineWidth=2;c.stroke();c.restore();
+}
+// 변인 이름에 따라 자연스러운 서술어 고르기
+const VERBS=[
+  [/시간|시각|기간/,['지날수록','지날 때마다','늘어난다','줄어든다']],
+  [/온도|기온|수온/,['높을수록','높아질 때마다','높아진다','낮아진다']],
+  [/길이|거리|높이|깊이|변위/,['길수록','길어질 때마다','길어진다','짧아진다']],
+  [/속력|속도|빠르기/,['빠를수록','빨라질 때마다','빨라진다','느려진다']],
+  [/무게|질량/,['무거울수록','무거워질 때마다','무거워진다','가벼워진다']],
+  [/개수|수$|횟수|부피|넓이|면적|양$/,['많을수록','늘어날 때마다','늘어난다','줄어든다']]
+];
+function verbs(n){for(const[re,v]of VERBS)if(re.test(n))return v;return['커질수록','커질 때마다','커진다','작아진다']}
 function writeConclusion(pts,reg){
   const box=$('concl');
   const xn=$('xname').value||'x',yn=$('yname').value||'y',xu=$('xunit').value,yu=$('yunit').value;
@@ -297,13 +338,14 @@ function writeConclusion(pts,reg){
   const 은=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'은':'는'};
   const 이=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'이':'가'};
   const 와=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'과':'와'};
-  let t=`${xn}${이(xn)} 커질수록 ${yn}${은(yn)} ${up?'커진다':'작아진다'}.`;
+  const vx=verbs(xn),vy=verbs(yn);
+  let t=`${xn}${이(xn)} ${vx[0]} ${yn}${은(yn)} ${up?vy[2]:vy[3]}.`;
   const fit=reg.r2>=0.95?'잘 맞는':reg.r2>=0.8?'대체로 맞는':'잘 맞지 않는';
   if(reg.type==='prop')t+=` 그래프가 원점을 지나는 직선에 가까우므로 ${xn}${와(xn)} ${yn}${은(yn)} 정비례 관계라고 볼 수 있다.`;
   else if(reg.type==='linear')t+=` 그래프는 직선 모양이다.`;
   else if(reg.type==='inv')t+=` 두 값을 곱한 값이 약 ${sig(reg.xy)} 정도로 거의 일정하므로 ${xn}${와(xn)} ${yn}${은(yn)} 반비례 관계라고 볼 수 있다.`;
   else if(reg.type==='quad')t+=` 그래프는 직선이 아닌 곡선 모양이다.`;
-  if(reg.slope!==undefined)t+=` ${xn}${이(xn)} 1${xu?' '+xu:''} 커질 때마다 ${yn}${은(yn)} 약 ${sig(Math.abs(reg.slope))}${yu?' '+yu:''}씩 ${reg.slope>=0?'커진다':'작아진다'}.`;
+  if(reg.slope!==undefined)t+=` ${xn}${이(xn)} 1${xu?' '+xu:''} ${vx[1]} ${yn}${은(yn)} 약 ${sig(Math.abs(reg.slope))}${yu?' '+yu:''}씩 ${reg.slope>=0?vy[2]:vy[3]}.`;
   t+=` (추세선 ${reg.eq}, 결정계수 R² = ${reg.r2.toFixed(3)}: 측정값과 ${fit} 편)`;
   box.value=t;
 }
@@ -314,7 +356,7 @@ tbody.addEventListener('paste',e=>{
   const rows=t.trim().split(/\r?\n/).map(l=>l.split(/\t|,(?=\s*-?\d)|\s+/).filter(Boolean));
   tbody.innerHTML='';rows.forEach(r=>addRow(r[0]??'',r[1]??''));draw();
 });
-['title','xname','xunit','yname','yunit','fitType','optConnect','optOrigin','xmin','xmax','ymin','ymax'].forEach(id=>$(id).addEventListener('input',draw));
+['title','xname','xunit','yname','yunit','fitType','optConnect','optOrigin','xmin','xmax','ymin','ymax','predX'].forEach(id=>$(id).addEventListener('input',draw));
 $('axisReset').onclick=()=>{['xmin','xmax','ymin','ymax'].forEach(i=>$(i).value='');draw()};
 $('example').onchange=e=>loadExample(e.target.value);
 $('addRow').onclick=()=>{addRow();tbody.lastChild.querySelector('input').focus()};
