@@ -58,11 +58,34 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
   .row4{grid-template-columns:1fr 1fr}
 }
 @media (pointer:coarse){input[type=checkbox]{width:20px;height:20px}}
+.printOnly{display:none}
+@media print{
+  @page{size:A4;margin:12mm}
+  body{background:#fff;font-size:11pt}
+  header p,footer,.noPrint,#example,label[for=example],.btns,.hint,details.axis,.pred,#conclBox,td.del,th:last-child,tr.empty{display:none!important}
+  .printOnly{display:block}
+  header{padding:0 0 6px;max-width:none}header h1{font-size:14pt}
+  .who{display:flex;gap:18px;font-size:10.5pt;margin-top:6px}
+  .who span{border-bottom:1px solid #000;min-width:90px;display:inline-block}
+  main{display:block;padding:0;max-width:none}
+  .card{border:0;padding:0;margin:0 0 6px}
+  section[aria-label="그래프"]{display:flex;flex-direction:column}
+  section[aria-label="그래프"] h2{order:0}
+  canvas{order:1;max-width:132mm;margin:0 auto;border:1px solid #ccc;break-inside:avoid}
+  .stats{order:2}#printConcl{order:3}
+  input,select{border:0;padding:1px 4px;font-size:10.5pt}
+  .row2{grid-template-columns:repeat(4,1fr)}
+  table{width:auto;min-width:60%}td input{padding:2px 6px;font-size:10.5pt}
+  .card h2{font-size:11.5pt;margin:4px 0}
+  #printConcl{margin-top:6px;line-height:1.7;white-space:pre-wrap;font-size:10.5pt}
+  #printConcl .lines div{border-bottom:1px solid #999;height:8mm}
+}
 </style>
 </head>
 <body>
 <header>
   <h1>📈 탐구 그래프 메이커</h1>
+  <div class="printOnly who">학년·반 <span></span> 번호 <span></span> 이름 <span></span></div>
   <p>측정값을 표에 넣으면 그래프·추세선·기울기가 바로 나와요. 모든 계산은 이 브라우저 안에서만 해요.</p>
 </header>
 <main>
@@ -112,6 +135,7 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
     </div>
     <canvas id="cv" width="1000" height="700" role="img" aria-label="측정값 그래프"></canvas>
     <div class="stats" id="stats"></div>
+    <div class="printOnly" id="printConcl"></div>
     <div class="pred" id="predBox">
       <label for="predX">추세선으로 예측하기 — 가로축 값을 넣어 보세요</label>
       <div class="predrow"><input id="predX" inputmode="decimal" placeholder="예: 3"><span id="predOut" aria-live="polite"></span></div>
@@ -136,7 +160,9 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
     <div class="btns">
       <button class="b primary" id="png">그래프 PNG 저장</button>
       <button class="b" id="share">공유 링크 복사</button>
+      <button class="b" id="print">인쇄 / PDF</button>
     </div>
+    <label class="chk noPrint"><input type="checkbox" id="optWorksheet"> 인쇄할 때 결과 문장 대신 빈칸(학생 활동지)</label>
     <p class="hint" id="shareMsg" aria-live="polite"></p>
     <p class="hint">입력한 내용은 이 기기 브라우저에 자동 저장돼요. 공유 링크를 학생에게 보내면 같은 표·그래프가 그대로 열려요.</p>
   </section>
@@ -244,7 +270,7 @@ function draw(){
   fitCanvas();drawOn();scheduleSave();
 }
 // ---- 상태 저장·공유 ----
-const TXT=['title','xname','xunit','yname','yunit','fitType','xmin','xmax','ymin','ymax','predX'],CHK=['optConnect','optOrigin'];
+const TXT=['title','xname','xunit','yname','yunit','fitType','xmin','xmax','ymin','ymax','predX'],CHK=['optConnect','optOrigin','optWorksheet'];
 const SKEY='auto-lab-graph-v1';
 function getState(){
   const st={v:1,d:[]};TXT.forEach(i=>{if($(i).value!=='')st[i]=$(i).value});CHK.forEach(i=>st[i]=$(i).checked?1:0);
@@ -390,7 +416,7 @@ tbody.addEventListener('paste',e=>{
   const rows=t.trim().split(/\r?\n/).map(l=>l.split(/\t|,(?=\s*-?\d)|\s+/).filter(Boolean));
   tbody.innerHTML='';rows.forEach(r=>addRow(r[0]??'',r[1]??''));draw();
 });
-['title','xname','xunit','yname','yunit','fitType','optConnect','optOrigin','xmin','xmax','ymin','ymax','predX'].forEach(id=>$(id).addEventListener('input',draw));
+['title','xname','xunit','yname','yunit','fitType','optConnect','optOrigin','xmin','xmax','ymin','ymax','predX','optWorksheet'].forEach(id=>$(id).addEventListener('input',draw));
 $('axisReset').onclick=()=>{['xmin','xmax','ymin','ymax'].forEach(i=>$(i).value='');draw()};
 $('example').onchange=e=>loadExample(e.target.value);
 $('addRow').onclick=()=>{addRow();tbody.lastChild.querySelector('input').focus()};
@@ -411,6 +437,17 @@ $('share').onclick=async()=>{
   try{await navigator.clipboard.writeText(url);$('shareMsg').textContent='링크를 복사했어요 ('+url.length+'자)'}
   catch(e){window.prompt('아래 링크를 복사하세요',url)}
 };
+window.addEventListener('beforeprint',preparePrint);
+window.addEventListener('afterprint',()=>draw());
+function preparePrint(){
+  fitCanvas([1000,700]);drawOn();
+  for(const r of tbody.rows){const [ix,iy]=r.querySelectorAll('input');r.classList.toggle('empty',ix.value===''&&iy.value==='')}
+  const pc=$('printConcl');pc.innerHTML='';
+  const h=document.createElement('h2');h.textContent='4. 결과 정리';pc.appendChild(h);
+  if($('optWorksheet').checked){const d=document.createElement('div');d.className='lines';for(let i=0;i<4;i++)d.appendChild(document.createElement('div'));pc.appendChild(d)}
+  else{const t=$('concl').value.trim();if(!t){pc.innerHTML='';return}const p=document.createElement('p');p.style.margin='0';p.textContent=t;pc.appendChild(p)}
+}
+$('print').onclick=()=>{preparePrint();window.print()};
 window.addEventListener('hashchange',()=>{if(restore())draw()});
 let rzT;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(draw,150)});
 if(restore())draw();else{loadExample('hooke');$('example').value='hooke'}
