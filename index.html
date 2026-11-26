@@ -78,7 +78,15 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
   table{width:auto;min-width:60%}td input{padding:2px 6px;font-size:10.5pt}
   .card h2{font-size:11.5pt;margin:4px 0}
   #printConcl{margin-top:6px;line-height:1.7;white-space:pre-wrap;font-size:10.5pt}
-  #printConcl .lines div{border-bottom:1px solid #999;height:8mm}
+  #printConcl .lines div{border-bottom:1px solid #999;height:7mm}
+  body.printSplit canvas{max-width:118mm}
+  body.printLong canvas{max-width:86mm}
+  body.printSplit table:not(#printTable){display:none!important}
+  body:not(.printSplit) #printTable{display:none!important}
+  #printTable{display:table;border-collapse:collapse;font-size:10pt}
+  #printTable th,#printTable td{border:1px solid #999;padding:1px 8px;text-align:center}
+  #printTable th:nth-child(4),#printTable td:nth-child(4){border-left:2px solid #000}
+  #printTable th:last-child{display:table-cell!important}
 }
 </style>
 </head>
@@ -112,11 +120,12 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
       <thead><tr><th>#</th><th id="thx">x</th><th id="thy">y</th><th></th></tr></thead>
       <tbody id="tbody"></tbody>
     </table>
+    <table class="printOnly" id="printTable"></table>
     <div class="btns">
       <button class="b" id="addRow">+ 행 추가</button>
       <button class="b" id="clear">모두 지우기</button>
     </div>
-    <p class="hint">엑셀에서 두 열을 복사해 표의 첫 칸에 붙여넣어도 돼요.</p>
+    <p class="hint">엑셀에서 두 열을 복사해 표의 첫 칸에 붙여넣어도 돼요. Enter를 누르면 다음 칸으로 넘어가요.</p>
   </section>
   <section class="card" aria-label="그래프">
     <h2>3. 그래프</h2>
@@ -300,6 +309,15 @@ function restore(){
   try{const raw=localStorage.getItem(SKEY);if(raw&&setState(JSON.parse(raw))){$('shareMsg').textContent='지난번 입력을 이어서 불러왔어요';return true}}catch(e){}
   return false;
 }
+// 화면 낭독기용: 그래프 내용을 글로 요약
+function setAlt(pts,reg,xn,yn){
+  const xu=$('xunit').value,yu=$('yunit').value,xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  const u=(v,un)=>sig(v)+(un?' '+un:'');
+  let t=($('title').value?$('title').value+' 그래프. ':'그래프. ')+`가로축 ${xn}, 세로축 ${yn}. 측정값 ${pts.length}개, `+
+    `${xn} ${u(Math.min(...xs),xu)}부터 ${u(Math.max(...xs),xu)}까지, ${yn} ${u(Math.min(...ys),yu)}부터 ${u(Math.max(...ys),yu)}까지.`;
+  if(reg)t+=` 추세선 ${FITS[reg.type].name}: ${reg.eq.replace('−','마이너스')}, 결정계수 ${reg.r2.toFixed(3)}.`;
+  $('cv').setAttribute('aria-label',t);
+}
 function drawOn(){
   const cv=$('cv'),c=cv.getContext('2d'),W=cv.width,H=cv.height;
   const pts=getData();
@@ -311,7 +329,7 @@ function drawOn(){
   const tt=$('title').value||'';let tf=30;c.font=`bold ${tf}px system-ui,sans-serif`;
   while(tf>16&&c.measureText(tt).width>W-20){tf-=2;c.font=`bold ${tf}px system-ui,sans-serif`}
   c.fillText(tt,W/2,42);
-  if(pts.length===0){c.font='24px system-ui,sans-serif';c.fillStyle='#667085';c.fillText('측정값을 입력하세요',W/2,H/2);$('stats').innerHTML='';return}
+  if(pts.length===0){c.font='24px system-ui,sans-serif';c.fillStyle='#667085';c.fillText('측정값을 입력하세요',W/2,H/2);$('stats').innerHTML='';cv.setAttribute('aria-label','그래프: 아직 측정값이 없어요');return}
   const inc=$('optOrigin').checked;
   const rx=range(pts.map(p=>p[0]),inc,num('xmin'),num('xmax')),ry=range(pts.map(p=>p[1]),inc,num('ymin'),num('ymax'));
   const X=v=>L+(v-rx.lo)/(rx.hi-rx.lo)*pw,Y=v=>T+ph-(v-ry.lo)/(ry.hi-ry.lo)*ph;
@@ -358,6 +376,7 @@ function drawOn(){
     h+=`<br><span class="hint">이 추세선을 계산할 수 없어요. (점 개수가 부족하거나, 반비례인데 x=0이 있어요)</span>`;
   }
   $('stats').innerHTML=h;
+  setAlt(pts,reg,xn,yn);
   writeConclusion(pts,reg);
 }
 function drawPred(c,reg,pts,X,Y,rx,ry,L,T,pw,ph){
@@ -410,6 +429,17 @@ function writeConclusion(pts,reg){
   box.value=t;
 }
 tbody.addEventListener('input',draw);
+// Enter: x칸 → 같은 행 y칸 → 다음 행 x칸 (마지막 행이면 새 행 추가)
+tbody.addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.isComposing||e.target.tagName!=='INPUT')return;
+  e.preventDefault();
+  const tr=e.target.closest('tr'),ins=tr.querySelectorAll('input'),back=e.shiftKey;
+  if(!back&&e.target===ins[0])return ins[1].focus();
+  if(back&&e.target===ins[1])return ins[0].focus();
+  let nx=back?tr.previousElementSibling:tr.nextElementSibling;
+  if(!nx&&!back){addRow();nx=tbody.lastChild}
+  if(nx)nx.querySelectorAll('input')[back?1:0].focus();
+});
 tbody.addEventListener('paste',e=>{
   const t=e.clipboardData.getData('text');if(!/[\t\n]/.test(t))return;
   e.preventDefault();
@@ -442,10 +472,27 @@ window.addEventListener('afterprint',()=>draw());
 function preparePrint(){
   fitCanvas([1000,700]);drawOn();
   for(const r of tbody.rows){const [ix,iy]=r.querySelectorAll('input');r.classList.toggle('empty',ix.value===''&&iy.value==='')}
+  buildPrintTable();
   const pc=$('printConcl');pc.innerHTML='';
   const h=document.createElement('h2');h.textContent='4. 결과 정리';pc.appendChild(h);
   if($('optWorksheet').checked){const d=document.createElement('div');d.className='lines';for(let i=0;i<4;i++)d.appendChild(document.createElement('div'));pc.appendChild(d)}
   else{const t=$('concl').value.trim();if(!t){pc.innerHTML='';return}const p=document.createElement('p');p.style.margin='0';p.textContent=t;pc.appendChild(p)}
+}
+// 측정값이 10개를 넘으면 인쇄용 표를 2단으로 접어 A4 한 장에 들어가게
+function buildPrintTable(){
+  const pt=$('printTable');pt.innerHTML='';
+  const rows=[...tbody.rows].filter(r=>!r.classList.contains('empty')).map(r=>[...r.querySelectorAll('input')].map(i=>i.value));
+  const split=rows.length>10;document.body.classList.toggle('printSplit',split);document.body.classList.toggle('printLong',rows.length>20);
+  if(!split)return;
+  const half=Math.ceil(rows.length/2),hx=$('thx').textContent,hy=$('thy').textContent;
+  const th=document.createElement('tr');
+  for(let k=0;k<2;k++)['#',hx,hy].forEach(t=>{const c=document.createElement('th');c.textContent=t;th.appendChild(c)});
+  const hd=document.createElement('thead');hd.appendChild(th);pt.appendChild(hd);
+  const bd=document.createElement('tbody');
+  for(let i=0;i<half;i++){const tr=document.createElement('tr');
+    [i,i+half].forEach(j=>{const r=rows[j];[r?j+1:'',r?r[0]:'',r?r[1]:''].forEach((t,m)=>{const c=document.createElement('td');c.textContent=t;if(m===0)c.className='n';tr.appendChild(c)})});
+    bd.appendChild(tr)}
+  pt.appendChild(bd);
 }
 $('print').onclick=()=>{preparePrint();window.print()};
 window.addEventListener('hashchange',()=>{if(restore())draw()});
