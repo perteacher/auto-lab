@@ -50,6 +50,7 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
 #dt.ns1 .c1,#dt.ns1 .c2,#dt.ns2 .c2{display:none}
 .sn{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.sn[hidden]{display:none}
 .sn div{flex:1;min-width:80px}.sn label{display:flex;align-items:center;gap:4px}
+.sn label.meanChk{flex-basis:100%;color:var(--ink);margin-top:4px}
 .sw{display:inline-block;width:12px;height:12px;border-radius:3px}
 .slist{margin:4px 0 0;padding-left:0;list-style:none}.slist li{margin:2px 0}
 @media (max-width:820px){
@@ -117,6 +118,7 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
       <optgroup label="전기">
         <option value="ohm">전압과 전류 (옴의 법칙)</option>
         <option value="ohm2">굵기가 다른 니크롬선 비교 (계열 2개)</option>
+        <option value="hooke3">용수철 3회 반복 측정 (평균 + 오차 막대)</option>
       </optgroup>
       <optgroup label="물질·열·기체">
         <option value="heat">물을 가열할 때 시간과 온도</option>
@@ -156,6 +158,7 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
       <div><label for="sn0"><span class="sw" style="background:#2563eb"></span>계열 1 이름</label><input id="sn0" placeholder="1회"></div>
       <div><label for="sn1"><span class="sw" style="background:#16a34a"></span>계열 2 이름</label><input id="sn1" placeholder="2회"></div>
       <div class="c2wrap"><label for="sn2"><span class="sw" style="background:#9333ea"></span>계열 3 이름</label><input id="sn2" placeholder="3회"></div>
+      <label class="chk meanChk"><input type="checkbox" id="optMean"> 반복 실험이면 평균으로 합치기 (같은 x의 평균 + 오차 막대)</label>
     </div>
     <p class="hint">엑셀에서 두 열(반복 실험·조건 비교면 최대 네 열)을 복사해 표의 첫 칸에 붙여넣어도 돼요. Enter를 누르면 다음 칸으로 넘어가요. 같은 실험을 여러 번 했거나 조건을 바꿔 비교할 땐 '계열 추가'로 세로축 열을 늘려요(최대 3개).</p>
   </section>
@@ -231,6 +234,7 @@ const EX={
   enzyme:{title:'온도에 따른 아밀레이스의 반응 속도',xname:'온도',xunit:'℃',yname:'반응 속도(상대값)',yunit:'',g:'bar',fit:'none',data:[[10,12],[20,30],[30,58],[40,85],[50,47],[60,10]]},
   pulse:{title:'제자리 뛰기 시간과 1분 맥박 수',xname:'운동 시간',xunit:'분',yname:'맥박 수',yunit:'회/분',g:'line',fit:'none',origin:0,ns:3,sn:['학생 A','학생 B','학생 C'],data:[[0,72,80,68],[1,98,110,90],[2,118,132,108],[3,130,145,120],[4,136,150,126]]},
   alt:{title:'높이에 따른 기온',xname:'높이',xunit:'km',yname:'기온',yunit:'℃',data:[[0,15],[1,8.6],[2,2.1],[3,-4.5],[4,-11],[5,-17.4]]},
+  hooke3:{title:'추의 무게와 용수철이 늘어난 길이 (3회 반복)',xname:'추의 무게',xunit:'N',yname:'늘어난 길이',yunit:'cm',ns:3,mean:1,data:[[0,0,0,0],[0.5,1.1,0.9,1.0],[1,2.0,2.2,1.9],[1.5,3.1,2.8,3.0],[2,3.9,4.2,4.0],[2.5,5.1,4.8,5.0]]},
   ohm2:{title:'굵기가 다른 니크롬선의 전압과 전류',xname:'전압',xunit:'V',yname:'전류',yunit:'mA',ns:2,sn:['가는 선','굵은 선'],data:[[0,0,0],[1.5,51,102],[3,99,205],[4.5,152,298],[6,199,402],[7.5,251,497]]}
 };
 const SC=[{c:'#2563eb',s:'circle',def:'1회'},{c:'#16a34a',s:'square',def:'2회'},{c:'#9333ea',s:'tri',def:'3회'}];
@@ -260,12 +264,19 @@ function getSeries(){
   return S;
 }
 function getData(){return getSeries().flatMap(s=>s.pts)}
+// 반복 실험: 같은 x의 값들을 평균 내고, 최솟값~최댓값을 오차 막대로
+function meanSeries(raw){
+  const m=new Map();for(const s of raw)for(const[x,y]of s.pts){if(!m.has(x))m.set(x,[]);m.get(x).push(y)}
+  const xs=[...m.keys()].sort((a,b)=>a-b),avg=v=>v.reduce((a,b)=>a+b,0)/v.length;
+  return{k:0,name:'평균',col:'#1d2330',shape:'circle',mean:true,pts:xs.map(x=>[x,avg(m.get(x))]),
+    err:xs.map(x=>{const v=m.get(x);return{x,lo:Math.min(...v),hi:Math.max(...v),n:v.length}})};
+}
 function loadExample(k){
   const e=EX[k];if(!e)return;
   ['xmin','xmax','ymin','ymax','predX'].forEach(i=>$(i).value='');
   ['title','xname','xunit','yname','yunit'].forEach(f=>$(f).value=e[f]);
   [0,1,2].forEach(k=>$('sn'+k).value=(e.sn&&e.sn[k])||'');setNS(e.ns||1);
-  $('gType').value=e.g||'dot';$('fitType').value=e.fit||'auto';$('optOrigin').checked=e.origin!==0;
+  $('gType').value=e.g||'dot';$('fitType').value=e.fit||'auto';$('optOrigin').checked=e.origin!==0;$('optMean').checked=!!e.mean;
   tbody.innerHTML='';e.data.forEach(d=>addRow(...d));draw();
 }
 const FITS={
@@ -338,7 +349,7 @@ function draw(){
   fitCanvas();drawOn();scheduleSave();
 }
 // ---- 상태 저장·공유 ----
-const TXT=['title','xname','xunit','yname','yunit','fitType','gType','xmin','xmax','ymin','ymax','predX','sn0','sn1','sn2'],CHK=['optOrigin','optWorksheet'];
+const TXT=['title','xname','xunit','yname','yunit','fitType','gType','xmin','xmax','ymin','ymax','predX','sn0','sn1','sn2'],CHK=['optOrigin','optWorksheet','optMean'];
 const SKEY='auto-lab-graph-v1';
 function getState(){
   const st={v:1,d:[]};TXT.forEach(i=>{if($(i).value!=='')st[i]=$(i).value});CHK.forEach(i=>st[i]=$(i).checked?1:0);
@@ -384,10 +395,11 @@ function setAlt(pts,reg,xn,yn,S){
 }
 function drawOn(){
   const cv=$('cv'),c=cv.getContext('2d'),W=cv.width,H=cv.height;
-  const S=getSeries(),pts=S.flatMap(s=>s.pts),multi=NS>1;
+  const raw=getSeries(),useMean=NS>1&&$('optMean').checked,M=useMean?meanSeries(raw):null;
+  const S=useMean?[M]:raw,pts=S.flatMap(s=>s.pts),allPts=raw.flatMap(s=>s.pts),multi=S.length>1;
   const xn=$('xname').value||'x',yn=$('yname').value||'y';
   $('thx').textContent=axisLabel(xn,$('xunit').value);
-  for(let k=0;k<3;k++)$('thy'+k).textContent=multi?sName(k):axisLabel(yn,$('yunit').value);
+  for(let k=0;k<3;k++)$('thy'+k).textContent=NS>1?sName(k):axisLabel(yn,$('yunit').value);
   c.fillStyle='#fff';c.fillRect(0,0,W,H);
   const sm=W<1000,L=sm?92:110,R=sm?24:40,T=sm?62:70,B=sm?92:100,pw=W-L-R,ph=H-T-B;
   c.fillStyle='#1d2330';c.textAlign='center';
@@ -397,10 +409,10 @@ function drawOn(){
   if(pts.length===0){c.font='24px system-ui,sans-serif';c.fillStyle='#667085';c.fillText('측정값을 입력하세요',W/2,H/2);$('stats').innerHTML='';cv.setAttribute('aria-label','그래프: 아직 측정값이 없어요');return}
   const inc=$('optOrigin').checked,gt=$('gType').value;
   // 막대: 이웃한 x 사이 가장 좁은 간격을 막대 칸 너비로, 양 끝 막대가 잘리지 않게 x 범위를 반 칸씩 늘림
-  const ux=[...new Set(pts.map(p=>p[0]))].sort((a,b)=>a-b);
+  const ux=[...new Set(allPts.map(p=>p[0]))].sort((a,b)=>a-b);
   let gap=Infinity;for(let i=1;i<ux.length;i++)gap=Math.min(gap,ux[i]-ux[i-1]);if(!isFinite(gap))gap=1;
-  const xv=gt==='bar'?[ux[0]-gap/2,ux[ux.length-1]+gap/2]:pts.map(p=>p[0]);
-  const rx=range(xv,inc&&gt!=='bar',num('xmin'),num('xmax')),ry=range(pts.map(p=>p[1]),inc||gt==='bar',num('ymin'),num('ymax'));
+  const xv=gt==='bar'?[ux[0]-gap/2,ux[ux.length-1]+gap/2]:allPts.map(p=>p[0]);
+  const rx=range(xv,inc&&gt!=='bar',num('xmin'),num('xmax')),ry=range(allPts.map(p=>p[1]),inc||gt==='bar',num('ymin'),num('ymax'));
   const X=v=>L+(v-rx.lo)/(rx.hi-rx.lo)*pw,Y=v=>T+ph-(v-ry.lo)/(ry.hi-ry.lo)*ph;
   c.lineWidth=1;c.font='20px system-ui,sans-serif';
   for(let v=Math.ceil(rx.lo/rx.st-1e-9)*rx.st;v<=rx.hi+rx.st*1e-6;v+=rx.st){
@@ -416,13 +428,19 @@ function drawOn(){
   c.fillText(axisLabel(xn,$('xunit').value),L+pw/2,H-30);
   c.save();c.translate(30,T+ph/2);c.rotate(-Math.PI/2);c.fillText(axisLabel(yn,$('yunit').value),0,0);c.restore();
   c.save();c.beginPath();c.rect(L,T,pw,ph);c.clip();
-  if(gt==='bar'){const cw=X(gap)-X(0),bw=cw*0.8/NS,y0=Y(Math.max(ry.lo,Math.min(ry.hi,0)));
+  if(gt==='bar'){const cw=X(gap)-X(0),bw=cw*0.8/S.length,y0=Y(Math.max(ry.lo,Math.min(ry.hi,0)));
     for(const sr of S)for(const[x,y]of sr.pts){const bx=X(x)-cw*0.4+sr.k*bw,by=Y(y);
-      c.fillStyle=sr.col+(multi?'cc':'b3');c.fillRect(bx,Math.min(by,y0),bw,Math.abs(by-y0));
+      c.fillStyle=sr.mean?'#cbd5e1':sr.col+(multi?'cc':'b3');c.fillRect(bx,Math.min(by,y0),bw,Math.abs(by-y0));
       c.strokeStyle=sr.col;c.lineWidth=1.5;c.strokeRect(bx,Math.min(by,y0),bw,Math.abs(by-y0))}}
   if(gt==='line')for(const sr of S){
     const s=[...sr.pts].sort((a,b)=>a[0]-b[0]);
     c.strokeStyle=sr.col+(multi?'99':'bb');c.lineWidth=2.5;c.beginPath();s.forEach((p,i)=>i?c.lineTo(X(p[0]),Y(p[1])):c.moveTo(X(p[0]),Y(p[1])));c.stroke();
+  }
+  if(M){// 개별 측정값은 흐리게, 오차 막대(최솟값~최댓값)는 진하게
+    c.save();c.globalAlpha=0.4;for(const sr of raw)for(const[x,y]of sr.pts)if(gt!=='bar')mark(c,sr.shape,X(x)+(sr.k-1)*7,Y(y),sr.col,5);c.restore();
+    c.strokeStyle='#1d2330';c.lineWidth=2;
+    for(const e of M.err){if(e.hi-e.lo<=0)continue;const x=X(e.x),a=Y(e.lo),b=Y(e.hi);
+      c.beginPath();c.moveTo(x,a);c.lineTo(x,b);c.moveTo(x-9,a);c.lineTo(x+9,a);c.moveTo(x-9,b);c.lineTo(x+9,b);c.stroke()}
   }
   const ft=$('fitType').value;
   // 여러 계열이면 같은 종류의 추세선으로 맞춰야 비교가 쉬움: 자동 추천은 계열 1 기준
@@ -440,8 +458,9 @@ function drawOn(){
   let out=0;
   for(const sr of S)for(const[x,y]of sr.pts){if(x<rx.lo||x>rx.hi||y<ry.lo||y>ry.hi){out++;continue}if(gt!=='bar')mark(c,sr.shape,X(x),Y(y),sr.col)}
   if(multi)drawLegend(c,S,L,T,pw);
+  else if(M)drawLegend(c,[...(gt==='bar'?[]:raw.map(s=>({...s,faint:1}))),{...M,name:'평균 (막대: 최소~최대)'}],L,T,pw);
   drawPred(c,S,pts,X,Y,rx,ry,L,T,pw,ph);
-  let h=`측정값 <b>${pts.length}</b>개`+(out?` <span class="hint">(축 범위 밖 ${out}개는 안 보여요)</span>`:'');
+  let h=(M?`${NS}회 반복 측정값 <b>${allPts.length}</b>개 → 평균 점 <b>${pts.length}</b>개`:`측정값 <b>${pts.length}</b>개`)+(out?` <span class="hint">(축 범위 밖 ${out}개는 안 보여요)</span>`:'');
   if(multi){
     h+=`<ul class="slist">`+S.map(sr=>{const r=sr.reg,yu=$('yunit').value,xu=$('xunit').value;
       let li=`<li><span class="sw" style="background:${sr.col}"></span> <b>${esc(sr.name)}</b> (${sr.pts.length}개)`;
@@ -460,8 +479,14 @@ function drawOn(){
     h+=`<br><span class="hint">이 추세선을 계산할 수 없어요. (점 개수가 부족하거나, 반비례인데 x=0이 있어요)</span>`;
   }
   $('stats').innerHTML=h;
+  let wide=null;if(M){wide=M.err.reduce((a,e)=>!a||e.hi-e.lo>a.hi-a.lo?e:a,null);
+    const yu=$('yunit').value;$('stats').innerHTML+=`<br><span class="hint">검은 점은 평균, 세로 막대는 그 x에서 측정값의 최솟값~최댓값이에요. 막대가 길수록 반복 측정값이 들쭉날쭉했다는 뜻이에요.${wide&&wide.hi>wide.lo?` 가장 긴 곳: ${esc(xn)} ${sig(wide.x)}${esc($('xunit').value?' '+$('xunit').value:'')} (${sig(wide.lo)}~${sig(wide.hi)}${esc(yu?' '+yu:'')})`:''}</span>`}
   setAlt(pts,reg,xn,yn,S);
+  if(M)$('cv').setAttribute('aria-label',$('cv').getAttribute('aria-label')+` ${NS}회 반복 측정의 평균을 점으로, 최솟값~최댓값을 오차 막대로 표시.`);
   writeConclusion(S[0].pts,reg,S);
+  if(M&&$('concl').value){const yu=$('yunit').value;
+    $('concl').value=`같은 조건에서 ${NS}번 반복 측정한 값의 평균으로 그래프를 그렸다. `+$('concl').value+
+      (wide&&wide.hi>wide.lo?` 반복 측정값의 차이(오차 막대)는 ${xn} ${sig(wide.x)}${$('xunit').value?' '+$('xunit').value:''}에서 가장 컸다(약 ${sig(wide.hi-wide.lo)}${yu?' '+yu:''}).`:' 반복 측정값은 모두 같았다.')}
 }
 function esc(t){return t.replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
 // 계열마다 색과 모양을 함께 달리해서 흑백 인쇄·색약에도 구분되게
@@ -476,7 +501,7 @@ function drawLegend(c,S,L,T,pw){
   c.save();c.font='18px system-ui,sans-serif';c.textAlign='left';
   const w=Math.max(...S.map(s=>c.measureText(s.name).width))+48,h=S.length*26+12,x0=L+12,y0=T+12;
   c.fillStyle='rgba(255,255,255,.92)';c.strokeStyle='#d0d5dd';c.lineWidth=1;c.fillRect(x0,y0,w,h);c.strokeRect(x0,y0,w,h);
-  S.forEach((s,i)=>{const y=y0+19+i*26;mark(c,s.shape,x0+16,y,s.col,7);c.fillStyle='#1d2330';c.fillText(s.name,x0+32,y+6)});
+  S.forEach((s,i)=>{const y=y0+19+i*26;c.globalAlpha=s.faint?0.45:1;mark(c,s.shape,x0+16,y,s.col,7);c.globalAlpha=1;c.fillStyle='#1d2330';c.fillText(s.name,x0+32,y+6)});
   c.restore();
 }
 function drawPred(c,S,pts,X,Y,rx,ry,L,T,pw,ph){
@@ -606,7 +631,7 @@ tbody.addEventListener('paste',e=>{
   const cols=Math.max(...rows.map(r=>r.length));if(cols>2)setNS(Math.min(cols-1,3));else if(cols===2&&NS>1&&confirm('두 열만 붙여넣었어요. 계열을 1개로 줄일까요?'))setNS(1);
   tbody.innerHTML='';rows.forEach(r=>addRow(...r.slice(0,4)));draw();
 });
-['title','xname','xunit','yname','yunit','fitType','gType','optOrigin','xmin','xmax','ymin','ymax','predX','optWorksheet','sn0','sn1','sn2'].forEach(id=>$(id).addEventListener('input',draw));
+['title','xname','xunit','yname','yunit','fitType','gType','optOrigin','xmin','xmax','ymin','ymax','predX','optWorksheet','optMean','sn0','sn1','sn2'].forEach(id=>$(id).addEventListener('input',draw));
 $('addS').onclick=()=>{setNS(NS+1);draw();const r=tbody.rows[0];if(r)visIns(r)[NS].focus()};
 $('delS').onclick=()=>{const k=NS-1,has=[...tbody.rows].some(r=>rowIns(r)[k+1].value!=='');
   if(has&&!confirm(`'${sName(k)}' 열의 값을 지울까요?`))return;
