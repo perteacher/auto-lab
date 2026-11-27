@@ -48,6 +48,9 @@ details.axis{margin-top:10px;font-size:.88rem}
 details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
 .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 #dt.ns1 .c1,#dt.ns1 .c2,#dt.ns2 .c2{display:none}
+#dt .cavg{display:none}#dt.mean .cavg{display:table-cell}
+#dt td.cavg{text-align:center;font-weight:600;background:#f1f3f6;color:#1d2330;font-variant-numeric:tabular-nums;padding:0 8px;white-space:nowrap}
+#dt th.cavg{background:#e7eaf0}
 .sn{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.sn[hidden]{display:none}
 .sn div{flex:1;min-width:80px}.sn label{display:flex;align-items:center;gap:4px}
 .sn label.meanChk{flex-basis:100%;color:var(--ink);margin-top:4px}
@@ -144,7 +147,7 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
     </div>
     <h2 style="margin-top:14px">2. 측정값</h2>
     <table id="dt" class="ns1">
-      <thead><tr><th>#</th><th id="thx">x</th><th id="thy0" class="c0">y</th><th id="thy1" class="c1">y2</th><th id="thy2" class="c2">y3</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th id="thx">x</th><th id="thy0" class="c0">y</th><th id="thy1" class="c1">y2</th><th id="thy2" class="c2">y3</th><th id="thavg" class="cavg" title="같은 행 측정값의 평균 (자동 계산)">평균</th><th></th></tr></thead>
       <tbody id="tbody"></tbody>
     </table>
     <table class="printOnly" id="printTable"></table>
@@ -248,7 +251,7 @@ const $=id=>document.getElementById(id);
 const tbody=$('tbody');
 function addRow(...v){
   const tr=document.createElement('tr');
-  tr.innerHTML=`<td class="n"></td><td><input inputmode="decimal" aria-label="x 값"></td>`+[0,1,2].map(k=>`<td class="c${k}"><input inputmode="decimal" aria-label="계열 ${k+1} y 값"></td>`).join('')+`<td class="del"><button title="행 삭제" aria-label="행 삭제">✕</button></td>`;
+  tr.innerHTML=`<td class="n"></td><td><input inputmode="decimal" aria-label="x 값"></td>`+[0,1,2].map(k=>`<td class="c${k}"><input inputmode="decimal" aria-label="계열 ${k+1} y 값"></td>`).join('')+`<td class="cavg" aria-label="평균"></td><td class="del"><button title="행 삭제" aria-label="행 삭제">✕</button></td>`;
   rowIns(tr).forEach((inp,i)=>inp.value=v[i]??'');
   tr.querySelector('button').onclick=()=>{tr.remove();renumber();draw()};
   tbody.appendChild(tr);renumber();
@@ -346,7 +349,21 @@ function fitCanvas(force){
   if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
 }
 function draw(){
-  fitCanvas();drawOn();scheduleSave();
+  fitCanvas();drawOn();updateAvgCol();scheduleSave();
+}
+// 평균 모드: 표에 '평균' 열(같은 행 측정값 평균, 입력 소수 자릿수 +1자리) 자동 표시
+function decOf(v){const m=String(v).trim().replace(',','.').match(/\.(\d+)/);return m?m[1].length:0}
+function avgDec(){let m=0;for(const r of tbody.rows)for(const i of visIns(r).slice(1))m=Math.max(m,decOf(i.value));return Math.min(3,m+1)}
+function rowAvg(r,d=avgDec()){
+  const v=visIns(r).slice(1).map(i=>i.value).filter(t=>t.trim()!==''&&isFinite(pf(t)));
+  if(!v.length)return'';
+  const a=v.map(pf).reduce((x,y)=>x+y,0)/v.length;
+  return(Math.round(a*10**d)/10**d).toFixed(d);
+}
+function updateAvgCol(){
+  const on=NS>1&&$('optMean').checked;$('dt').classList.toggle('mean',on);
+  $('thavg').textContent='평균'+($('yunit').value.trim()?' ('+$('yunit').value.trim()+')':'');
+  const d=avgDec();for(const r of tbody.rows){const c=r.querySelector('td.cavg');if(c)c.textContent=on?rowAvg(r,d):''}
 }
 // ---- 상태 저장·공유 ----
 const TXT=['title','xname','xunit','yname','yunit','fitType','gType','xmin','xmax','ymin','ymax','predX','sn0','sn1','sn2'],CHK=['optOrigin','optWorksheet','optMean'];
@@ -670,10 +687,12 @@ function preparePrint(){
 // 측정값이 10개를 넘으면 인쇄용 표를 2단으로 접어 A4 한 장에 들어가게
 function buildPrintTable(){
   const pt=$('printTable');pt.innerHTML='';
-  const rows=[...tbody.rows].filter(r=>!r.classList.contains('empty')).map(r=>visIns(r).map(i=>i.value));
+  const rawRows=[...tbody.rows].filter(r=>!r.classList.contains('empty')),rows=rawRows.map(r=>visIns(r).map(i=>i.value));
   const split=rows.length>10;document.body.classList.toggle('printSplit',split);document.body.classList.toggle('printLong',rows.length>20);
   if(!split)return;
-  const half=Math.ceil(rows.length/2),heads=['#',$('thx').textContent,...[0,1,2].slice(0,NS).map(k=>$('thy'+k).textContent)],nc=heads.length;
+  const half=Math.ceil(rows.length/2),heads=['#',$('thx').textContent,...[0,1,2].slice(0,NS).map(k=>$('thy'+k).textContent)],useAvg=NS>1&&$('optMean').checked;
+  if(useAvg){heads.push($('thavg').textContent);const d=avgDec();rows.forEach((v,i)=>v.push(rowAvg(rawRows[i],d)))}
+  const nc=heads.length;
   const th=document.createElement('tr');
   for(let k=0;k<2;k++)heads.forEach((t,m)=>{const c=document.createElement('th');c.textContent=t;if(k&&!m)c.className='sep';th.appendChild(c)});
   const hd=document.createElement('thead');hd.appendChild(th);pt.appendChild(hd);
