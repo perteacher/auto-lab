@@ -107,11 +107,30 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
     <label for="example">예시 불러오기</label>
     <select id="example">
       <option value="">— 직접 입력 —</option>
-      <option value="hooke">용수철에 매단 추의 무게와 늘어난 길이</option>
-      <option value="ohm">전압과 전류 (옴의 법칙)</option>
-      <option value="heat">물을 가열할 때 시간과 온도</option>
-      <option value="boyle">압력과 기체의 부피 (보일 법칙)</option>
-      <option value="ohm2">굵기가 다른 니크롬선 비교 (계열 2개)</option>
+      <optgroup label="힘과 운동·에너지">
+        <option value="hooke">용수철에 매단 추의 무게와 늘어난 길이</option>
+        <option value="mass">질량과 무게 (지구에서)</option>
+        <option value="uniform">등속 운동: 시간과 이동 거리</option>
+        <option value="fall">자유 낙하: 시간과 낙하 거리 (2차 곡선)</option>
+        <option value="pe">높이와 위치 에너지</option>
+      </optgroup>
+      <optgroup label="전기">
+        <option value="ohm">전압과 전류 (옴의 법칙)</option>
+        <option value="ohm2">굵기가 다른 니크롬선 비교 (계열 2개)</option>
+      </optgroup>
+      <optgroup label="물질·열·기체">
+        <option value="heat">물을 가열할 때 시간과 온도</option>
+        <option value="cool">팔미트산 냉각 곡선 (꺾은선, 어는점)</option>
+        <option value="boyle">압력과 기체의 부피 (보일 법칙)</option>
+        <option value="charles">온도와 기체의 부피 (샤를 법칙)</option>
+        <option value="solub">질산 칼륨의 용해도 곡선</option>
+        <option value="mgo">마그네슘과 산화 마그네슘의 질량 (일정 성분비)</option>
+      </optgroup>
+      <optgroup label="생명·지구">
+        <option value="enzyme">온도에 따른 효소 반응 속도 (막대)</option>
+        <option value="pulse">운동 시간과 맥박 수 (꺾은선, 3명 비교)</option>
+        <option value="alt">높이에 따른 기온 (기온 감률)</option>
+      </optgroup>
     </select>
     <label for="title">그래프 제목</label>
     <input id="title" value="">
@@ -152,7 +171,12 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
         <option value="quad">2차 곡선 (y = ax² + bx + c)</option>
         <option value="none">없음</option>
       </select>
-      <label class="chk"><input type="checkbox" id="optConnect"> 점 잇기</label>
+      <label class="chk" for="gType">그래프 모양</label>
+      <select id="gType" style="width:auto">
+        <option value="dot">점 (산점도)</option>
+        <option value="line">꺾은선 (점 잇기)</option>
+        <option value="bar">막대</option>
+      </select>
       <label class="chk"><input type="checkbox" id="optOrigin" checked> 원점 포함</label>
     </div>
     <canvas id="cv" width="1000" height="700" role="img" aria-label="측정값 그래프"></canvas>
@@ -196,6 +220,17 @@ const EX={
   ohm:{title:'니크롬선에 걸린 전압과 전류',xname:'전압',xunit:'V',yname:'전류',yunit:'mA',data:[[0,0],[1.5,52],[3,98],[4.5,151],[6,203],[7.5,248]]},
   heat:{title:'물을 가열한 시간과 온도',xname:'시간',xunit:'분',yname:'온도',yunit:'℃',data:[[0,18],[1,26],[2,35],[3,43],[4,52],[5,60],[6,69]]},
   boyle:{title:'압력과 기체의 부피',xname:'압력',xunit:'기압',yname:'부피',yunit:'mL',data:[[1,60],[1.5,40],[2,30],[2.5,24],[3,20],[4,15]]},
+  mass:{title:'물체의 질량과 무게',xname:'질량',xunit:'kg',yname:'무게',yunit:'N',data:[[0,0],[0.1,1.0],[0.2,2.0],[0.3,2.9],[0.4,3.9],[0.5,4.9]]},
+  uniform:{title:'등속 운동하는 장난감 자동차의 시간과 이동 거리',xname:'시간',xunit:'s',yname:'이동 거리',yunit:'cm',data:[[0,0],[1,24],[2,49],[3,72],[4,97],[5,121]]},
+  fall:{title:'자유 낙하하는 공의 시간과 낙하 거리',xname:'시간',xunit:'s',yname:'낙하 거리',yunit:'m',data:[[0,0],[0.1,0.05],[0.2,0.2],[0.3,0.44],[0.4,0.78],[0.5,1.23],[0.6,1.76]]},
+  pe:{title:'추를 들어 올린 높이와 위치 에너지',xname:'높이',xunit:'m',yname:'위치 에너지',yunit:'J',data:[[0,0],[0.5,4.8],[1,9.9],[1.5,14.6],[2,19.7],[2.5,24.4]]},
+  cool:{title:'액체 팔미트산을 식힐 때 시간과 온도',xname:'시간',xunit:'분',yname:'온도',yunit:'℃',g:'line',fit:'none',origin:0,data:[[0,78],[1,72],[2,67],[3,63],[4,62.5],[5,62.5],[6,62.5],[7,62.5],[8,61],[9,57],[10,53]]},
+  charles:{title:'온도에 따른 기체의 부피 (압력 일정)',xname:'온도',xunit:'℃',yname:'부피',yunit:'mL',data:[[0,50],[20,53.7],[40,57.3],[60,61],[80,64.7]]},
+  solub:{title:'온도에 따른 질산 칼륨의 용해도',xname:'온도',xunit:'℃',yname:'용해도',yunit:'g/물 100 g',g:'line',fit:'quad',data:[[0,13],[20,32],[40,64],[60,110],[80,169]]},
+  mgo:{title:'마그네슘의 질량과 생성된 산화 마그네슘의 질량',xname:'마그네슘의 질량',xunit:'g',yname:'산화 마그네슘의 질량',yunit:'g',data:[[0,0],[0.3,0.5],[0.6,1.0],[0.9,1.5],[1.2,2.0],[1.5,2.5]]},
+  enzyme:{title:'온도에 따른 아밀레이스의 반응 속도',xname:'온도',xunit:'℃',yname:'반응 속도(상대값)',yunit:'',g:'bar',fit:'none',data:[[10,12],[20,30],[30,58],[40,85],[50,47],[60,10]]},
+  pulse:{title:'제자리 뛰기 시간과 1분 맥박 수',xname:'운동 시간',xunit:'분',yname:'맥박 수',yunit:'회/분',g:'line',fit:'none',origin:0,ns:3,sn:['학생 A','학생 B','학생 C'],data:[[0,72,80,68],[1,98,110,90],[2,118,132,108],[3,130,145,120],[4,136,150,126]]},
+  alt:{title:'높이에 따른 기온',xname:'높이',xunit:'km',yname:'기온',yunit:'℃',data:[[0,15],[1,8.6],[2,2.1],[3,-4.5],[4,-11],[5,-17.4]]},
   ohm2:{title:'굵기가 다른 니크롬선의 전압과 전류',xname:'전압',xunit:'V',yname:'전류',yunit:'mA',ns:2,sn:['가는 선','굵은 선'],data:[[0,0,0],[1.5,51,102],[3,99,205],[4.5,152,298],[6,199,402],[7.5,251,497]]}
 };
 const SC=[{c:'#2563eb',s:'circle',def:'1회'},{c:'#16a34a',s:'square',def:'2회'},{c:'#9333ea',s:'tri',def:'3회'}];
@@ -230,6 +265,7 @@ function loadExample(k){
   ['xmin','xmax','ymin','ymax','predX'].forEach(i=>$(i).value='');
   ['title','xname','xunit','yname','yunit'].forEach(f=>$(f).value=e[f]);
   [0,1,2].forEach(k=>$('sn'+k).value=(e.sn&&e.sn[k])||'');setNS(e.ns||1);
+  $('gType').value=e.g||'dot';$('fitType').value=e.fit||'auto';$('optOrigin').checked=e.origin!==0;
   tbody.innerHTML='';e.data.forEach(d=>addRow(...d));draw();
 }
 const FITS={
@@ -302,7 +338,7 @@ function draw(){
   fitCanvas();drawOn();scheduleSave();
 }
 // ---- 상태 저장·공유 ----
-const TXT=['title','xname','xunit','yname','yunit','fitType','xmin','xmax','ymin','ymax','predX','sn0','sn1','sn2'],CHK=['optConnect','optOrigin','optWorksheet'];
+const TXT=['title','xname','xunit','yname','yunit','fitType','gType','xmin','xmax','ymin','ymax','predX','sn0','sn1','sn2'],CHK=['optOrigin','optWorksheet'];
 const SKEY='auto-lab-graph-v1';
 function getState(){
   const st={v:1,d:[]};TXT.forEach(i=>{if($(i).value!=='')st[i]=$(i).value});CHK.forEach(i=>st[i]=$(i).checked?1:0);
@@ -314,6 +350,8 @@ function setState(st){
   if(!st||!Array.isArray(st.d))return false;
   TXT.forEach(i=>{$(i).value=st[i]!=null?String(st[i]):(i==='fitType'?'auto':'')});
   if(!$('fitType').value)$('fitType').value='auto';
+  // 예전 링크의 '점 잇기' 체크(optConnect)는 꺾은선으로
+  if(!['dot','line','bar'].includes($('gType').value))$('gType').value=+st.optConnect?'line':'dot';
   CHK.forEach(i=>{if(st[i]!=null)$(i).checked=!!+st[i]});
   setNS(+st.ns||1);
   tbody.innerHTML='';st.d.slice(0,200).forEach(r=>addRow(...(Array.isArray(r)?r:[]).slice(0,4).map(v=>String(v??''))));
@@ -357,8 +395,12 @@ function drawOn(){
   while(tf>16&&c.measureText(tt).width>W-20){tf-=2;c.font=`bold ${tf}px system-ui,sans-serif`}
   c.fillText(tt,W/2,42);
   if(pts.length===0){c.font='24px system-ui,sans-serif';c.fillStyle='#667085';c.fillText('측정값을 입력하세요',W/2,H/2);$('stats').innerHTML='';cv.setAttribute('aria-label','그래프: 아직 측정값이 없어요');return}
-  const inc=$('optOrigin').checked;
-  const rx=range(pts.map(p=>p[0]),inc,num('xmin'),num('xmax')),ry=range(pts.map(p=>p[1]),inc,num('ymin'),num('ymax'));
+  const inc=$('optOrigin').checked,gt=$('gType').value;
+  // 막대: 이웃한 x 사이 가장 좁은 간격을 막대 칸 너비로, 양 끝 막대가 잘리지 않게 x 범위를 반 칸씩 늘림
+  const ux=[...new Set(pts.map(p=>p[0]))].sort((a,b)=>a-b);
+  let gap=Infinity;for(let i=1;i<ux.length;i++)gap=Math.min(gap,ux[i]-ux[i-1]);if(!isFinite(gap))gap=1;
+  const xv=gt==='bar'?[ux[0]-gap/2,ux[ux.length-1]+gap/2]:pts.map(p=>p[0]);
+  const rx=range(xv,inc&&gt!=='bar',num('xmin'),num('xmax')),ry=range(pts.map(p=>p[1]),inc||gt==='bar',num('ymin'),num('ymax'));
   const X=v=>L+(v-rx.lo)/(rx.hi-rx.lo)*pw,Y=v=>T+ph-(v-ry.lo)/(ry.hi-ry.lo)*ph;
   c.lineWidth=1;c.font='20px system-ui,sans-serif';
   for(let v=Math.ceil(rx.lo/rx.st-1e-9)*rx.st;v<=rx.hi+rx.st*1e-6;v+=rx.st){
@@ -374,9 +416,13 @@ function drawOn(){
   c.fillText(axisLabel(xn,$('xunit').value),L+pw/2,H-30);
   c.save();c.translate(30,T+ph/2);c.rotate(-Math.PI/2);c.fillText(axisLabel(yn,$('yunit').value),0,0);c.restore();
   c.save();c.beginPath();c.rect(L,T,pw,ph);c.clip();
-  if($('optConnect').checked)for(const sr of S){
+  if(gt==='bar'){const cw=X(gap)-X(0),bw=cw*0.8/NS,y0=Y(Math.max(ry.lo,Math.min(ry.hi,0)));
+    for(const sr of S)for(const[x,y]of sr.pts){const bx=X(x)-cw*0.4+sr.k*bw,by=Y(y);
+      c.fillStyle=sr.col+(multi?'cc':'b3');c.fillRect(bx,Math.min(by,y0),bw,Math.abs(by-y0));
+      c.strokeStyle=sr.col;c.lineWidth=1.5;c.strokeRect(bx,Math.min(by,y0),bw,Math.abs(by-y0))}}
+  if(gt==='line')for(const sr of S){
     const s=[...sr.pts].sort((a,b)=>a[0]-b[0]);
-    c.strokeStyle=multi?sr.col+'88':'#94a3b8';c.lineWidth=2;c.beginPath();s.forEach((p,i)=>i?c.lineTo(X(p[0]),Y(p[1])):c.moveTo(X(p[0]),Y(p[1])));c.stroke();
+    c.strokeStyle=sr.col+(multi?'99':'bb');c.lineWidth=2.5;c.beginPath();s.forEach((p,i)=>i?c.lineTo(X(p[0]),Y(p[1])):c.moveTo(X(p[0]),Y(p[1])));c.stroke();
   }
   const ft=$('fitType').value;
   // 여러 계열이면 같은 종류의 추세선으로 맞춰야 비교가 쉬움: 자동 추천은 계열 1 기준
@@ -392,7 +438,7 @@ function drawOn(){
   }
   c.restore();
   let out=0;
-  for(const sr of S)for(const[x,y]of sr.pts){if(x<rx.lo||x>rx.hi||y<ry.lo||y>ry.hi){out++;continue}mark(c,sr.shape,X(x),Y(y),sr.col)}
+  for(const sr of S)for(const[x,y]of sr.pts){if(x<rx.lo||x>rx.hi||y<ry.lo||y>ry.hi){out++;continue}if(gt!=='bar')mark(c,sr.shape,X(x),Y(y),sr.col)}
   if(multi)drawLegend(c,S,L,T,pw);
   drawPred(c,S,pts,X,Y,rx,ry,L,T,pw,ph);
   let h=`측정값 <b>${pts.length}</b>개`+(out?` <span class="hint">(축 범위 밖 ${out}개는 안 보여요)</span>`:'');
@@ -457,18 +503,58 @@ function drawPred(c,S,pts,X,Y,rx,ry,L,T,pw,ph){
 const VERBS=[
   [/시간|시각|기간/,['지날수록','지날 때마다','늘어난다','줄어든다']],
   [/온도|기온|수온/,['높을수록','높아질 때마다','높아진다','낮아진다']],
-  [/길이|거리|높이|깊이|변위/,['길수록','길어질 때마다','길어진다','짧아진다']],
+  [/높이|고도/,['높아질수록','높아질 때마다','높아진다','낮아진다']],
+  [/질량/,['클수록','커질 때마다','커진다','작아진다']],
+  [/길이|거리|깊이|변위/,['길수록','길어질 때마다','길어진다','짧아진다']],
   [/속력|속도|빠르기/,['빠를수록','빨라질 때마다','빨라진다','느려진다']],
-  [/무게|질량/,['무거울수록','무거워질 때마다','무거워진다','가벼워진다']],
+  [/무게/,['무거울수록','무거워질 때마다','무거워진다','가벼워진다']],
   [/개수|수$|횟수|부피|넓이|면적|양$/,['많을수록','늘어날 때마다','늘어난다','줄어든다']]
 ];
 function verbs(n){for(const[re,v]of VERBS)if(re.test(n))return v;return['커질수록','커질 때마다','커진다','작아진다']}
+// 추세선 없이(꺾은선·막대) 그래프 모양만으로 결과 문장: 최댓값·최솟값 위치, 일정한 구간
+function shapeConclusion(S,xn,yn,xu,yu){
+  const jong=w=>{const ch=w.charCodeAt(w.length-1);return ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28>0};
+  const 은=w=>jong(w)?'은':'는',이=w=>jong(w)?'이':'가',을=w=>jong(w)?'을':'를';
+  const U=(v,u)=>sig(v)+(u?' '+u:''),vx=verbs(xn),vy=verbs(yn);
+  const ga=v=>v.replace(/진다$/,'지다가').replace(/난다$/,'나다가').replace(/든다$/,'들다가').replace(/한다$/,'하다가');
+  const one=(sr,pre)=>{
+    const p=[...sr.pts].sort((a,b)=>a[0]-b[0]);if(p.length<3)return '';
+    const ys=p.map(q=>q[1]),n=p.length,span=Math.max(...ys)-Math.min(...ys)||1;
+    const iM=ys.indexOf(Math.max(...ys)),im=ys.indexOf(Math.min(...ys));
+    // 거의 같은 값(전체 변화폭의 1.5% 이내)이 3점 이상 이어지는 가장 긴 구간
+    let best=null;for(let i=0;i<n;i++){let j=i;while(j+1<n&&Math.abs(ys[j+1]-ys[i])<=span*0.015)j++;if(j-i>=2&&(!best||j-i>best[1]-best[0]))best=[i,j]}
+    let t=pre;
+    if(best){const v=ys.slice(best[0],best[1]+1).reduce((a,b)=>a+b,0)/(best[1]-best[0]+1);
+      const before=best[0]>0?(ys[best[0]]<ys[0]?ga(vy[3]):ga(vy[2])):'';
+      t+=`${xn}${이(xn)} ${vx[0]} ${yn}${은(yn)} ${before?before+' ':''}${xn} ${U(p[best[0]][0],xu)}부터 ${U(p[best[1]][0],xu)}까지는 약 ${U(v,yu)}로 거의 일정하게 유지된다.`;
+      if(best[1]<n-1)t+=` 그 뒤로는 다시 ${ys[n-1]<ys[best[1]]?vy[3]:vy[2]}.`;
+      t+=` 이렇게 ${yn}${이(yn)} 일정한 구간이 나타나는 까닭을 생각해 보자.`;
+    }else if(iM>0&&iM<n-1&&ys[iM]-Math.max(ys[0],ys[n-1])>span*0.1){
+      t+=`${xn}${이(xn)} ${vx[0]} ${yn}${은(yn)} ${ga(vy[2])} ${xn}${이(xn)} ${U(p[iM][0],xu)}일 때 가장 크고(약 ${U(ys[iM],yu)}), 그 뒤로는 ${vy[3]}.`;
+    }else if(im>0&&im<n-1&&Math.min(ys[0],ys[n-1])-ys[im]>span*0.1){
+      t+=`${xn}${이(xn)} ${vx[0]} ${yn}${은(yn)} ${ga(vy[3])} ${xn}${이(xn)} ${U(p[im][0],xu)}일 때 가장 작고(약 ${U(ys[im],yu)}), 그 뒤로는 ${vy[2]}.`;
+    }else{
+      const up=ys[n-1]>ys[0];
+      t+=`${xn}${이(xn)} ${vx[0]} ${yn}${은(yn)} ${up?vy[2]:vy[3]}. ${xn} ${U(p[0][0],xu)}에서 ${U(p[n-1][0],xu)}까지 ${yn}${은(yn)} 약 ${U(ys[0],yu)}에서 ${U(ys[n-1],yu)}까지 변했다.`;
+      const d1=ys[1]-ys[0],d2=ys[n-1]-ys[n-2];
+      if(Math.abs(d1)>Math.abs(d2)*1.8)t+=` 처음에는 빠르게 변하다가 점점 천천히 변한다.`;
+      else if(Math.abs(d2)>Math.abs(d1)*1.8)t+=` 처음에는 천천히 변하다가 점점 빠르게 변한다.`;
+    }
+    return t;
+  };
+  if(S.length===1)return one(S[0],'');
+  let t=S.map(sr=>one(sr,sr.name+': ')).filter(Boolean).join(' ');
+  const last=S.filter(s=>s.pts.length).map(s=>{const p=[...s.pts].sort((a,b)=>a[0]-b[0]);return{nm:s.name,y:p[p.length-1][1]}});
+  if(last.length>1){const mx=last.reduce((a,b)=>b.y>a.y?b:a);t+=` 마지막 측정값은 ${mx.nm}${이(mx.nm)} 약 ${U(mx.y,yu)}로 가장 크다.`}
+  return t;
+}
 function writeConclusion(pts,reg,S){
   const box=$('concl');
   const xn=$('xname').value||'x',yn=$('yname').value||'y',xu=$('xunit').value,yu=$('yunit').value;
-  if(pts.length<3||!reg){box.value='';$('conclBox').hidden=true;return}
+  if(pts.length<3){box.value='';$('conclBox').hidden=true;return}
   $('conclBox').hidden=false;
   const s=[...pts].sort((a,b)=>a[0]-b[0]);
+  if(!reg){box.value=shapeConclusion(S,xn,yn,xu,yu);return}
   const up=s[s.length-1][1]>s[0][1];
   const 은=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'은':'는'};
   const 이=w=>{const ch=w.charCodeAt(w.length-1);return (ch>=0xAC00&&ch<=0xD7A3&&(ch-0xAC00)%28)?'이':'가'};
@@ -520,7 +606,7 @@ tbody.addEventListener('paste',e=>{
   const cols=Math.max(...rows.map(r=>r.length));if(cols>2)setNS(Math.min(cols-1,3));else if(cols===2&&NS>1&&confirm('두 열만 붙여넣었어요. 계열을 1개로 줄일까요?'))setNS(1);
   tbody.innerHTML='';rows.forEach(r=>addRow(...r.slice(0,4)));draw();
 });
-['title','xname','xunit','yname','yunit','fitType','optConnect','optOrigin','xmin','xmax','ymin','ymax','predX','optWorksheet','sn0','sn1','sn2'].forEach(id=>$(id).addEventListener('input',draw));
+['title','xname','xunit','yname','yunit','fitType','gType','optOrigin','xmin','xmax','ymin','ymax','predX','optWorksheet','sn0','sn1','sn2'].forEach(id=>$(id).addEventListener('input',draw));
 $('addS').onclick=()=>{setNS(NS+1);draw();const r=tbody.rows[0];if(r)visIns(r)[NS].focus()};
 $('delS').onclick=()=>{const k=NS-1,has=[...tbody.rows].some(r=>rowIns(r)[k+1].value!=='');
   if(has&&!confirm(`'${sName(k)}' 열의 값을 지울까요?`))return;
