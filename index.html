@@ -142,9 +142,9 @@ details.adv summary{cursor:pointer;color:var(--muted);padding:8px 0;font-weight:
     <label for="title">그래프 제목</label>
     <input id="title" value="">
     <div class="row2">
-      <div><label for="xname">가로축(독립 변인)</label><input id="xname"></div>
+      <div><label for="xname">가로축: 내가 바꾼 것</label><input id="xname"></div>
       <div><label for="xunit">단위</label><input id="xunit"></div>
-      <div><label for="yname">세로축(종속 변인)</label><input id="yname"></div>
+      <div><label for="yname">세로축: 그래서 변한 것</label><input id="yname"></div>
       <div><label for="yunit">단위</label><input id="yunit"></div>
     </div>
     <h2 style="margin-top:14px">2. 측정값</h2>
@@ -170,7 +170,7 @@ details.adv summary{cursor:pointer;color:var(--muted);padding:8px 0;font-weight:
     <div class="btns" style="margin:0 0 8px">
       <label class="chk" for="gType">그래프 모양</label>
       <select id="gType" style="width:auto">
-        <option value="dot">점 (산점도)</option>
+        <option value="dot">점</option>
         <option value="line">꺾은선 (점 잇기)</option>
         <option value="bar">막대</option>
       </select>
@@ -488,24 +488,31 @@ function drawOn(){
   if(multi)drawLegend(c,S,L,T,pw);
   else if(M)drawLegend(c,[...(gt==='bar'?[]:raw.map(s=>({...s,faint:1}))),{...M,name:'평균 (막대: 최소~최대)'}],L,T,pw);
   drawPred(c,S,pts,X,Y,rx,ry,L,T,pw,ph);
+  const fitWord=r=>r.r2>=0.95?'점들이 선에 잘 맞아요':r.r2>=0.8?'점들이 선에 대체로 맞아요':'점들이 선에서 많이 벗어나요 — 값을 다시 확인해 보세요';
+  const shapeName=t=>({prop:'원점을 지나는 직선 (정비례)',linear:'직선',inv:'반비례 곡선',quad:'곡선'})[t]||FITS[t].name;
   let h=(M?`${NS}회 반복 측정값 <b>${allPts.length}</b>개 → 평균 점 <b>${pts.length}</b>개`:`측정값 <b>${pts.length}</b>개`)+(out?` <span class="hint">(축 범위 밖 ${out}개는 안 보여요)</span>`:'');
+  let d='';
   if(multi){
-    h+=`<ul class="slist">`+S.map(sr=>{const r=sr.reg,yu=$('yunit').value,xu=$('xunit').value;
-      let li=`<li><span class="sw" style="background:${sr.col}"></span> <b>${esc(sr.name)}</b> (${sr.pts.length}개)`;
+    if(reg)h+=`<br>점선(추세선) 모양: <b>${shapeName(reg.type)}</b>`;
+    h+=`<ul class="slist">`+S.map(sr=>`<li><span class="sw" style="background:${sr.col}"></span> <b>${esc(sr.name)}</b> (${sr.pts.length}개)${sr.reg?' — '+fitWord(sr.reg):''}</li>`).join('')+'</ul>';
+    d+=`<ul class="slist">`+S.map(sr=>{const r=sr.reg,yu=$('yunit').value,xu=$('xunit').value;
+      let li=`<li><span class="sw" style="background:${sr.col}"></span> <b>${esc(sr.name)}</b>`;
       if(r){li+=`: <b>${r.eq}</b>`;if(r.slope!==undefined)li+=`, 기울기 <b>${sig(r.slope)}${yu&&xu?` ${yu}/${xu}`:''}</b>`;if(r.xy!==undefined)li+=`, x×y ≈ <b>${sig(r.xy)}</b>`;li+=`, R² <b>${r.r2.toFixed(3)}</b>`}
       else if(ft!=='none')li+=': <span class="hint">추세선 계산 불가</span>';
       return li+'</li>'}).join('')+'</ul>';
-    if(reg)h+=`<span class="hint">추세선: ${FITS[reg.type].name}${ft==='auto'?' (계열 1 기준 자동 추천, 비교를 위해 모든 계열에 같은 종류 적용)':''}. R²가 1에 가까울수록 점들이 추세선에 가깝게 모여 있다는 뜻이에요.</span>`;
+    if(reg)d+=`<span class="hint">추세선: ${FITS[reg.type].name}${ft==='auto'?' (계열 1 기준 자동 추천, 비교를 위해 모든 계열에 같은 종류 적용)':''}. R²(결정계수)가 1에 가까울수록 점들이 추세선에 가깝게 모여 있다는 뜻이에요.</span>`;
   }else if(reg){
     const yu=$('yunit').value,xu=$('xunit').value;
-    h+=`<br>추세선(${FITS[reg.type].name}${ft==='auto'?', 자동 추천':''}): <b>${reg.eq}</b>`;
-    if(reg.slope!==undefined)h+=`<br>기울기: <b>${sig(reg.slope)}${yu&&xu?` ${yu}/${xu}`:''}</b>`;
-    if(reg.xy!==undefined)h+=`<br>x × y ≈ <b>${sig(reg.xy)}</b> (일정)`;
-    h+=` &nbsp; 결정계수 R²: <b>${reg.r2.toFixed(3)}</b>`;
-    h+=`<br><span class="hint">R²가 1에 가까울수록 점들이 추세선에 가깝게 모여 있다는 뜻이에요.</span>`;
+    h+=`<br>점선(추세선) 모양: <b>${shapeName(reg.type)}</b> — ${fitWord(reg)}`;
+    d+=`추세선(${FITS[reg.type].name}${ft==='auto'?', 자동 추천':''}): <b>${reg.eq}</b>`;
+    if(reg.slope!==undefined)d+=`<br>기울기: <b>${sig(reg.slope)}${yu&&xu?` ${yu}/${xu}`:''}</b>`;
+    if(reg.xy!==undefined)d+=`<br>x × y ≈ <b>${sig(reg.xy)}</b> (일정)`;
+    d+=` &nbsp; 결정계수 R²: <b>${reg.r2.toFixed(3)}</b>`;
+    d+=`<br><span class="hint">R²가 1에 가까울수록 점들이 추세선에 가깝게 모여 있다는 뜻이에요.</span>`;
   }else if(ft!=='none'){
     h+=`<br><span class="hint">이 추세선을 계산할 수 없어요. (점 개수가 부족하거나, 반비례인데 x=0이 있어요)</span>`;
   }
+  if(d){const was=$('statsMore')&&$('statsMore').open;h+=`<details class="axis" id="statsMore"${was?' open':''}><summary>자세한 수치 보기 (식·기울기·R²)</summary>${d}</details>`}
   $('stats').innerHTML=h;
   let wide=null;if(M){wide=M.err.reduce((a,e)=>!a||e.hi-e.lo>a.hi-a.lo?e:a,null);
     const yu=$('yunit').value;$('stats').innerHTML+=`<br><span class="hint">검은 점은 평균, 세로 막대는 그 x에서 측정값의 최솟값~최댓값이에요. 막대가 길수록 반복 측정값이 들쭉날쭉했다는 뜻이에요.${wide&&wide.hi>wide.lo?` 가장 긴 곳: ${esc(xn)} ${sig(wide.x)}${esc($('xunit').value?' '+$('xunit').value:'')} (${sig(wide.lo)}~${sig(wide.hi)}${esc(yu?' '+yu:'')})`:''}</span>`}
@@ -621,7 +628,7 @@ function writeConclusion(pts,reg,S){
   else if(reg.type==='inv')t+=` 두 값을 곱한 값이 약 ${sig(reg.xy)} 정도로 거의 일정하므로 ${xn}${와(xn)} ${yn}${은(yn)} 반비례 관계라고 볼 수 있다.`;
   else if(reg.type==='quad')t+=` 그래프는 직선이 아닌 곡선 모양이다.`;
   if(reg.slope!==undefined)t+=` ${xn}${이(xn)} 1${xu?' '+xu:''} ${vx[1]} ${yn}${은(yn)} 약 ${sig(Math.abs(reg.slope))}${yu?' '+yu:''}씩 ${reg.slope>=0?vy[2]:vy[3]}.`;
-  t+=` (추세선 ${reg.eq}, 결정계수 R² = ${reg.r2.toFixed(3)}: 측정값과 ${fit} 편)`;
+  t+=` 측정값은 추세선에 ${fit} 편이다.`;
   // 여러 계열: 기울기(또는 x×y) 비교 문장
   const R=S.filter(s=>s.reg);
   if(multi&&R.length>1){
