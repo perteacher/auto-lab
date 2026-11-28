@@ -46,6 +46,8 @@ textarea{font:inherit;width:100%;padding:8px;border:1px solid var(--line);border
 #predWarn.warn{color:#b45309}
 details.axis{margin-top:10px;font-size:.88rem}
 details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
+details.adv{margin-top:14px;border-top:1px solid var(--line);padding-top:8px;font-size:.9rem}
+details.adv summary{cursor:pointer;color:var(--muted);padding:8px 0;font-weight:600}
 .row4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 #dt.ns1 .c1,#dt.ns1 .c2,#dt.ns2 .c2{display:none}
 #dt .cavg{display:none}#dt.mean .cavg{display:table-cell}
@@ -103,14 +105,14 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
 <header>
   <h1>📈 탐구 그래프 메이커</h1>
   <div class="printOnly who">학년·반 <span></span> 번호 <span></span> 이름 <span></span></div>
-  <p>측정값을 표에 넣으면 그래프·추세선·기울기가 바로 나와요. 모든 계산은 이 브라우저 안에서만 해요.</p>
+  <p>실험을 고르거나 측정값을 넣으면 그래프와 결과 문장이 바로 나와요.</p>
 </header>
 <main>
   <section class="card" aria-label="데이터 입력">
     <h2>1. 실험 정보</h2>
-    <label for="example">예시 불러오기</label>
+    <label for="example">실험 고르기 (고르면 예시 값이 채워져요)</label>
     <select id="example">
-      <option value="">— 직접 입력 —</option>
+      <option value="">— 내 실험 직접 입력 —</option>
       <optgroup label="힘과 운동·에너지">
         <option value="hooke">용수철에 매단 추의 무게와 늘어난 길이</option>
         <option value="mass">질량과 무게 (지구에서)</option>
@@ -154,8 +156,6 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
     <div class="btns">
       <button class="b" id="addRow">+ 행 추가</button>
       <button class="b" id="clear">모두 지우기</button>
-      <button class="b" id="addS">+ 계열(세로축 열) 추가</button>
-      <button class="b" id="delS" hidden>− 마지막 계열 빼기</button>
     </div>
     <div class="sn noPrint" id="snBox" hidden>
       <div><label for="sn0"><span class="sw" style="background:#2563eb"></span>계열 1 이름</label><input id="sn0" placeholder="1회"></div>
@@ -163,31 +163,48 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
       <div class="c2wrap"><label for="sn2"><span class="sw" style="background:#9333ea"></span>계열 3 이름</label><input id="sn2" placeholder="3회"></div>
       <label class="chk meanChk"><input type="checkbox" id="optMean"> 반복 실험이면 평균으로 합치기 (같은 x의 평균 + 오차 막대)</label>
     </div>
-    <p class="hint">엑셀에서 두 열(반복 실험·조건 비교면 최대 네 열)을 복사해 표의 첫 칸에 붙여넣어도 돼요. Enter를 누르면 다음 칸으로 넘어가요. 같은 실험을 여러 번 했거나 조건을 바꿔 비교할 땐 '계열 추가'로 세로축 열을 늘려요(최대 3개).</p>
+    <p class="hint">Enter를 누르면 다음 칸으로 가요. 엑셀에서 복사해 붙여넣어도 돼요.</p>
   </section>
   <section class="card" aria-label="그래프">
     <h2>3. 그래프</h2>
     <div class="btns" style="margin:0 0 8px">
-      <label class="chk" for="fitType">추세선</label>
-      <select id="fitType" style="width:auto">
-        <option value="auto">자동 추천</option>
-        <option value="linear">직선 (y = ax + b)</option>
-        <option value="prop">정비례 (y = ax)</option>
-        <option value="inv">반비례 (y = a/x)</option>
-        <option value="quad">2차 곡선 (y = ax² + bx + c)</option>
-        <option value="none">없음</option>
-      </select>
       <label class="chk" for="gType">그래프 모양</label>
       <select id="gType" style="width:auto">
         <option value="dot">점 (산점도)</option>
         <option value="line">꺾은선 (점 잇기)</option>
         <option value="bar">막대</option>
       </select>
-      <label class="chk"><input type="checkbox" id="optOrigin" checked> 원점 포함</label>
     </div>
     <canvas id="cv" width="1000" height="700" role="img" aria-label="측정값 그래프"></canvas>
     <div class="stats" id="stats"></div>
     <div class="printOnly" id="printConcl"></div>
+    <div id="conclBox" class="concl" hidden>
+      <label for="concl">보고서용 결과 문장 (자동 초안 — 고쳐 써도 돼요)</label>
+      <textarea id="concl" rows="4"></textarea>
+      <div class="btns" style="margin-top:6px"><button class="b" id="copyConcl">문장 복사</button><span class="hint" id="copyMsg" aria-live="polite"></span></div>
+    </div>
+    <div class="btns">
+      <button class="b primary" id="png">그래프 그림으로 저장</button>
+    </div>
+    <p class="hint" id="shareMsg" aria-live="polite"></p>
+    <details class="adv noPrint" id="advBox">
+      <summary>⚙️ 고급 / 선생님용</summary>
+      <div class="btns" style="margin:4px 0 8px">
+        <label class="chk" for="fitType">추세선</label>
+        <select id="fitType" style="width:auto">
+          <option value="auto">자동 추천</option>
+          <option value="linear">직선 (y = ax + b)</option>
+          <option value="prop">정비례 (y = ax)</option>
+          <option value="inv">반비례 (y = a/x)</option>
+          <option value="quad">2차 곡선 (y = ax² + bx + c)</option>
+          <option value="none">없음</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="optOrigin" checked> 원점 포함</label>
+      </div>
+      <div class="btns" style="margin:0 0 8px">
+        <button class="b" id="addS">+ 세로축 열 추가 (반복 실험·조건 비교)</button>
+        <button class="b" id="delS" hidden>− 마지막 열 빼기</button>
+      </div>
     <div class="pred" id="predBox">
       <label for="predX">추세선으로 예측하기 — 가로축 값을 넣어 보세요</label>
       <div class="predrow"><input id="predX" inputmode="decimal" placeholder="예: 3"><span id="predOut" aria-live="polite"></span></div>
@@ -204,19 +221,13 @@ details.axis summary{cursor:pointer;color:var(--accent);padding:4px 0}
       <div class="btns"><button class="b" id="axisReset">자동으로 되돌리기</button></div>
       <p class="hint">비워 두면 자동이에요. 추세선을 범위 밖까지 늘려 보고 싶을 때(예측) 최댓값을 크게 잡아 보세요.</p>
     </details>
-    <div id="conclBox" class="concl" hidden>
-      <label for="concl">보고서용 결과 문장 (자동 초안 — 고쳐 써도 돼요)</label>
-      <textarea id="concl" rows="4"></textarea>
-      <div class="btns" style="margin-top:6px"><button class="b" id="copyConcl">문장 복사</button><span class="hint" id="copyMsg" aria-live="polite"></span></div>
-    </div>
-    <div class="btns">
-      <button class="b primary" id="png">그래프 PNG 저장</button>
-      <button class="b" id="share">공유 링크 복사</button>
-      <button class="b" id="print">인쇄 / PDF</button>
-    </div>
-    <label class="chk noPrint"><input type="checkbox" id="optWorksheet"> 인쇄할 때 결과 문장 대신 빈칸(학생 활동지)</label>
-    <p class="hint" id="shareMsg" aria-live="polite"></p>
-    <p class="hint">입력한 내용은 이 기기 브라우저에 자동 저장돼요. 공유 링크를 학생에게 보내면 같은 표·그래프가 그대로 열려요.</p>
+      <div class="btns">
+        <button class="b" id="share">공유 링크 복사</button>
+        <button class="b" id="print">인쇄 / PDF</button>
+      </div>
+      <label class="chk"><input type="checkbox" id="optWorksheet"> 인쇄할 때 결과 문장 대신 빈칸(학생 활동지)</label>
+      <p class="hint">입력한 내용은 이 기기 브라우저에 자동 저장돼요. 공유 링크를 학생에게 보내면 같은 표·그래프가 그대로 열려요.</p>
+    </details>
   </section>
 </main>
 <footer>auto-lab · Claude가 만든 실험 도구</footer>
@@ -703,9 +714,10 @@ function buildPrintTable(){
   pt.appendChild(bd);
 }
 $('print').onclick=()=>{preparePrint();window.print()};
-window.addEventListener('hashchange',()=>{if(restore())draw()});
+function advAuto(){if(['predX','xmin','xmax','ymin','ymax'].some(id=>$(id).value.trim()))$('advBox').open=true}
+window.addEventListener('hashchange',()=>{if(restore()){advAuto();draw()}});
 let rzT;window.addEventListener('resize',()=>{clearTimeout(rzT);rzT=setTimeout(draw,150)});
-if(restore())draw();else{loadExample('hooke');$('example').value='hooke'}
+if(restore()){advAuto();draw()}else{loadExample('hooke');$('example').value='hooke'}
 ready=true;
 </script>
 </body>
