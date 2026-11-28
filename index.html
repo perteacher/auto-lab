@@ -23,6 +23,9 @@ table{width:100%;border-collapse:collapse;margin-top:8px}
 th,td{border:1px solid var(--line);padding:0}
 th{background:#eef2f7;font-size:.82rem;padding:4px}
 td input{border:0;border-radius:0;text-align:right}
+td input.bad{background:#fee2e2;box-shadow:inset 0 0 0 2px #dc2626}
+.inWarn{margin:8px 0 0;padding:6px 10px;border-radius:8px;background:#fef2f2;color:#b91c1c;font-size:.88rem}
+@media print{td input.bad{background:none;box-shadow:none}}
 td.n{width:32px;text-align:center;font-size:.8rem;color:var(--muted)}
 td.del button{border:0;background:none;color:var(--muted);cursor:pointer;padding:4px 6px}
 .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
@@ -163,6 +166,7 @@ details.adv summary{cursor:pointer;color:var(--muted);padding:8px 0;font-weight:
       <div class="c2wrap"><label for="sn2"><span class="sw" style="background:#9333ea"></span>계열 3 이름</label><input id="sn2" placeholder="3회"></div>
       <label class="chk meanChk"><input type="checkbox" id="optMean"> 반복 실험이면 평균으로 합치기 (같은 x의 평균 + 오차 막대)</label>
     </div>
+    <p class="inWarn noPrint" id="inWarn" aria-live="polite" hidden></p>
     <p class="hint">Enter를 누르면 다음 칸으로 가요. 엑셀에서 복사해 붙여넣어도 돼요.</p>
   </section>
   <section class="card" aria-label="그래프">
@@ -268,7 +272,23 @@ function addRow(...v){
   tbody.appendChild(tr);renumber();
 }
 function renumber(){[...tbody.rows].forEach((r,i)=>r.cells[0].textContent=i+1)}
-const pf=s=>parseFloat(s.replace(',','.'));
+// 학생이 자주 하는 입력 실수도 숫자로 읽기: 전각 숫자, 쉼표 소수점(1,5), 다른 빼기 기호(−), 앞의 '약', 뒤의 단위(3cm)
+function normNum(s){return String(s).replace(/[０-９．－]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/[−–—]/g,'-').replace(/\s+/g,'').replace(/^(약|~|≈)+/,'').replace(',','.')}
+const pf=s=>parseFloat(normNum(s));
+// 숫자로 못 읽은 칸·가로축이 빈 칸을 빨갛게 표시하고 표 아래에 한 줄로 알려 주기
+function checkInputs(){
+  let bad=0,noX=0;
+  for(const r of tbody.rows){
+    const ins=visIns(r),xv=ins[0].value.trim(),hasY=ins.slice(1).some(i=>i.value.trim()!=='');
+    rowIns(r).forEach(i=>i.classList.remove('bad'));
+    ins.forEach(i=>{if(i.value.trim()!==''&&!isFinite(pf(i.value))){i.classList.add('bad');bad++}});
+    if(xv===''&&hasY){ins[0].classList.add('bad');noX++}
+  }
+  const m=[];
+  if(bad)m.push(`빨간 칸 ${bad}개는 숫자로 읽지 못했어요. 숫자만 써 주세요 (예: 2.5)`);
+  if(noX)m.push(`가로축 값이 빈 줄 ${noX}개는 그래프에 안 나와요`);
+  const w=$('inWarn');w.textContent=m.length?'⚠️ '+m.join(' · '):'';w.hidden=!m.length;
+}
 function getSeries(){
   const S=[];for(let k=0;k<NS;k++)S.push({k,name:sName(k),col:SC[k].c,shape:SC[k].s,pts:[]});
   for(const r of tbody.rows){
@@ -360,10 +380,10 @@ function fitCanvas(force){
   if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h}
 }
 function draw(){
-  fitCanvas();drawOn();updateAvgCol();scheduleSave();
+  fitCanvas();drawOn();updateAvgCol();checkInputs();scheduleSave();
 }
 // 평균 모드: 표에 '평균' 열(같은 행 측정값 평균, 입력 소수 자릿수 +1자리) 자동 표시
-function decOf(v){const m=String(v).trim().replace(',','.').match(/\.(\d+)/);return m?m[1].length:0}
+function decOf(v){const m=normNum(v).match(/\.(\d+)/);return m?m[1].length:0}
 function avgDec(){let m=0;for(const r of tbody.rows)for(const i of visIns(r).slice(1))m=Math.max(m,decOf(i.value));return Math.min(3,m+1)}
 function rowAvg(r,d=avgDec()){
   const v=visIns(r).slice(1).map(i=>i.value).filter(t=>t.trim()!==''&&isFinite(pf(t)));
